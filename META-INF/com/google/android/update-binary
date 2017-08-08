@@ -192,8 +192,9 @@ if [ "$action" == "installation" ]; then
       $target/busybox ln -sf busybox $applet;
     fi;
   done;
+  test "$magisk" && chcon -hR 'u:object_r:system_file:s0' "$mnt/$modname";
 else
-  test "$magisk" rm -rf /magisk/$modname;
+  test "$magisk" && rm -rf /magisk/$modname;
 fi;
 set_progress 1.0;
 
