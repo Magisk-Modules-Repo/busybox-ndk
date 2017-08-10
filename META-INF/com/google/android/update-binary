@@ -111,7 +111,7 @@ fi;
 # allow forcing a system installation regardless of su.img/magisk.img detection
 case $(basename "$ZIPFILE") in
   *system*) ;;
-  *) suimg=$(ls /data/su.img || ls /cache/su.img || ls /data/magisk_merge.img || ls /data/magisk.img || ls /cache/magisk.img) 2>/dev/null; mnt=$dev/$(basename $suimg .img);;
+  *) suimg=$(ls /data/magisk_merge.img || ls /data/su.img || ls /cache/su.img || ls /data/magisk.img || ls /cache/magisk.img) 2>/dev/null; mnt=$dev/$(basename $suimg .img);;
 esac;
 if [ "$suimg" ]; then
   umount $mnt;
