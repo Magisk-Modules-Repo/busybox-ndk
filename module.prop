@@ -1,7 +1,7 @@
 id=busybox-ndk
 name=Busybox for Android NDK
-version=1.27.1
-versionCode=12712
+version=1.27.2
+versionCode=12720
 author=osm0sis @ xda-developers
 description=Static busybox binary for all Android architectures built with the NDK
 support=https://forum.xda-developers.com/showthread.php?t=2239421

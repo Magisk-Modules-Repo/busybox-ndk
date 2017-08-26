@@ -132,9 +132,14 @@ if [ "$suimg" ]; then
   esac;
   test -d $mnt$magisk/xbin -o "$magisk" && target=$mnt$magisk/xbin || target=$mnt/bin;
 else
-  mount -o rw,remount /system;
-  mount /system;
-  target=$root/system/xbin;
+  mnt=$(dirname `find /data -name supersu_is_here | head -n1`);
+  if [ -e "$mnt" ]; then
+    target=$mnt/xbin;
+  else
+    mount -o rw,remount /system;
+    mount /system;
+    target=$root/system/xbin;
+  fi;
 fi;
 ui_print "Using path: $target";
 if [ "$action" == "uninstallation" ]; then
