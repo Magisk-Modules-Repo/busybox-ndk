@@ -70,7 +70,7 @@ case $(basename "$ZIPFILE") in
 esac;
 
 case $(basename "$ZIPFILE") in
-  *system*) ui_print " "; ui_print "Warning: Forcing a system $action!";;
+  *system*) system=1; ui_print " "; ui_print "Warning: Forcing a system $action!";;
 esac;
 
 if [ "$action" == "installation" ]; then
@@ -108,11 +108,16 @@ else
   ui_print "Uninstalling...";
 fi;
 
+# Magisk clean flash support
+if [ -e /data/magisk -a ! -e /data/magisk.img ]; then
+  /system/bin/make_ext4fs -l 64M /data/magisk.img;
+fi;
+
 # allow forcing a system installation regardless of su.img/magisk.img detection
-case $(basename "$ZIPFILE") in
-  *system*) ;;
-  *) suimg=$(ls /data/magisk_merge.img || ls /data/su.img || ls /cache/su.img || ls /data/magisk.img || ls /cache/magisk.img) 2>/dev/null; mnt=$dev/$(basename $suimg .img);;
-esac;
+if [ ! "$system" ]; then
+  suimg=$(ls /data/magisk_merge.img || ls /data/su.img || ls /cache/su.img || ls /data/magisk.img || ls /cache/magisk.img) 2>/dev/null;
+  mnt=$dev/$(basename $suimg .img);
+fi;
 if [ "$suimg" ]; then
   umount $mnt;
   test ! -e $mnt && mkdir $mnt;
@@ -132,8 +137,9 @@ if [ "$suimg" ]; then
   esac;
   test -d $mnt$magisk/xbin -o "$magisk" && target=$mnt$magisk/xbin || target=$mnt/bin;
 else
+  # SuperSU BINDSBIN support
   mnt=$(dirname `find /data -name supersu_is_here | head -n1`);
-  if [ -e "$mnt" ]; then
+  if [ -e "$mnt" -a ! "$system" ]; then
     target=$mnt/xbin;
   else
     mount -o rw,remount /system;
@@ -156,7 +162,7 @@ else
   if [ "$magisk" ]; then
     cp -f module.prop $mnt/$modname/;
     touch $mnt/$modname/auto_mount;
-    if $BOOTMODE; then
+    if $BOOTMODE && [ "$suimg" == "/data/magisk_merge.img" ]; then
       mkdir -p /magisk/$modname;
       touch /magisk/$modname/update;
       cp -f module.prop /magisk/$modname/;
