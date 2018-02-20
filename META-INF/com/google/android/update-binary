@@ -30,6 +30,7 @@ $BOOTMODE || ps -A 2>/dev/null | grep zygote | grep -v grep >/dev/null && BOOTMO
 if $BOOTMODE; then
   OUTFD=/proc/self/fd/0;
   dev=/dev;
+  devtmp=/dev/tmp;
   if [ ! -f /data/$adb/magisk_merge.img ]; then
     /system/bin/make_ext4fs -l 64M /data/$adb/magisk_merge.img >/dev/null;
   fi;
@@ -117,21 +118,19 @@ fi;
 # allow forcing a system installation regardless of su.img/magisk.img detection
 if [ ! "$system" ]; then
   suimg=$(ls /data/$adb/magisk_merge.img || ls /data/su.img || ls /cache/su.img || ls /data/$adb/magisk.img || ls /cache/magisk.img) 2>/dev/null;
-  mnt=$dev/$(basename $suimg .img);
+  mnt=$devtmp/$(basename $suimg .img);
 fi;
 if [ "$suimg" ]; then
   umount $mnt;
   test ! -e $mnt && mkdir $mnt;
   mount -t ext4 -o rw,noatime $suimg $mnt;
   for i in 0 1 2 3 4 5 6 7; do
-    case `mount` in
-      *" $mnt "*) break;;
-    esac;
+    test "$(mount | grep " $mnt ")" && break;
     loop=/dev/block/loop$i;
     if [ ! -f "$loop" -o ! -b "$loop" ]; then
       mknod $loop b 7 $i;
     fi;
-    losetup $loop $suimg && mount -t ext4 -o loop $loop $mnt;
+    losetup $loop $suimg && mount -t ext4 -o loop,noatime $loop $mnt;
   done;
   case $mnt in
     */magisk*) magisk=/$modname/system;;
