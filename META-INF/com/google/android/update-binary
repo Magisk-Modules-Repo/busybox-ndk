@@ -122,7 +122,7 @@ if [ ! "$system" ]; then
 fi;
 if [ "$suimg" ]; then
   umount $mnt;
-  test ! -e $mnt && mkdir $mnt;
+  test ! -e $mnt && mkdir -p $mnt;
   mount -t ext4 -o rw,noatime $suimg $mnt;
   for i in 0 1 2 3 4 5 6 7; do
     test "$(mount | grep " $mnt ")" && break;
