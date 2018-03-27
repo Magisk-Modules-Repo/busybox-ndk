@@ -32,7 +32,7 @@ if $BOOTMODE; then
   dev=/dev;
   devtmp=/dev/tmp;
   if [ ! -f /data/$adb/magisk_merge.img ]; then
-    /system/bin/make_ext4fs -l 64M /data/$adb/magisk_merge.img >/dev/null;
+    (/system/bin/make_ext4fs -b 4096 -l 64M /data/$adb/magisk_merge.img || /system/bin/mke2fs -b 4096 -t ext4 /data/$adb/magisk_merge.img 64M) >/dev/null;
   fi;
 fi;
 
@@ -112,7 +112,7 @@ fi;
 
 # Magisk clean flash support
 if [ -e /data/$adb/magisk -a ! -e /data/$adb/magisk.img ]; then
-  /system/bin/make_ext4fs -l 64M /data/$adb/magisk.img;
+  /system/bin/make_ext4fs -b 4096 -l 64M /data/$adb/magisk.img || /system/bin/mke2fs -b 4096 -t ext4 /data/$adb/magisk.img 64M;
 fi;
 
 # allow forcing a system installation regardless of su.img/magisk.img detection
@@ -135,7 +135,11 @@ if [ "$suimg" ]; then
   case $mnt in
     */magisk*) magisk=/$modname/system;;
   esac;
-  test -d $mnt$magisk/xbin -o "$magisk" && target=$mnt$magisk/xbin || target=$mnt/bin;
+  if [ -d "$mnt$magisk/xbin" -o "$magisk" -a -d "$root/system/xbin" ]; then
+    target=$mnt$magisk/xbin;
+  else
+    target=$mnt$magisk/bin;
+  fi;
 else
   # SuperSU BINDSBIN support
   mnt=$(dirname `find /data -name supersu_is_here | head -n1`);
@@ -163,9 +167,10 @@ else
     cp -f module.prop $mnt/$modname/;
     touch $mnt/$modname/auto_mount;
     if $BOOTMODE && [ "$suimg" == "/data/$adb/magisk_merge.img" ]; then
-      mkdir -p /magisk/$modname;
-      touch /magisk/$modname/update;
-      cp -f module.prop /magisk/$modname/;
+      test -e /magisk && imgmnt=/magisk || imgmnt=/sbin/.core/img;
+      mkdir -p "$imgmnt/$modname";
+      touch "$imgmnt/$modname/update";
+      cp -f module.prop "$imgmnt/$modname/";
     fi;
   fi;
   set_progress 0.8;
@@ -194,7 +199,7 @@ if [ "$action" == "installation" ]; then
   ui_print "Creating symlinks...";
   for applet in `$target/busybox --list`; do
     if [ "$target" == "$mnt$magisk/bin" ]; then
-      sysbin="$(ls /system/bin)";
+      sysbin="$(ls $root/system/bin)";
       case $sysbin in
         *$applet*) ;;
         *) $target/busybox ln -sf busybox $applet;;
@@ -205,14 +210,15 @@ if [ "$action" == "installation" ]; then
   done;
   test "$magisk" && chcon -hR 'u:object_r:system_file:s0' "$mnt/$modname";
 else
-  test "$magisk" && rm -rf /magisk/$modname;
+  test "$magisk" && rm -rf /magisk/$modname /sbin/.core/img/$modname;
 fi;
 set_progress 1.0;
 
 ui_print " ";
 ui_print "Unmounting...";
 cd /;
-umount $mnt;
+test "$suimg" && umount $mnt;
+test "$loop" && losetup -d $loop;
 umount /system;
 umount /data;
 umount /cache;
