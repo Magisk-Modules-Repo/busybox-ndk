@@ -201,7 +201,15 @@ if [ "$action" == "installation" ]; then
     if [ "$target" == "$mnt$magisk/bin" ]; then
       sysbin="$(ls $root/system/bin)";
       case $sysbin in
-        *$applet*) ;;
+        *$applet*)
+          if $BOOTMODE; then
+            existbin="$(ls $imgmnt/$modname/system/bin)";
+            case $existbin in
+              *$applet*) $target/busybox ln -sf busybox $applet;;
+              *) ;;
+            esac;
+          fi;
+        ;;
         *) $target/busybox ln -sf busybox $applet;;
       esac;
     else
