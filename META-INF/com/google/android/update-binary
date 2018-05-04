@@ -148,7 +148,11 @@ else
   else
     mount -o rw,remount /system;
     mount /system;
-    target=$root/system/xbin;
+    if -d [ "$root/system/xbin" ]; then
+      target=$root/system/xbin;
+    else
+      target=$root/system/bin;
+    fi;
   fi;
 fi;
 ui_print "Using path: $target";
@@ -166,11 +170,13 @@ else
   if [ "$magisk" ]; then
     cp -f module.prop $mnt/$modname/;
     touch $mnt/$modname/auto_mount;
-    if $BOOTMODE && [ "$suimg" == "/data/$adb/magisk_merge.img" ]; then
+    if $BOOTMODE; then
       test -e /magisk && imgmnt=/magisk || imgmnt=/sbin/.core/img;
-      mkdir -p "$imgmnt/$modname";
-      touch "$imgmnt/$modname/update";
-      cp -f module.prop "$imgmnt/$modname/";
+      if [ "$suimg" == "/data/$adb/magisk_merge.img" ]; then
+        mkdir -p "$imgmnt/$modname";
+        touch "$imgmnt/$modname/update";
+        cp -f module.prop "$imgmnt/$modname/";
+      fi;
     fi;
   fi;
   set_progress 0.8;
@@ -197,24 +203,21 @@ $target/busybox rm -f $list;
 if [ "$action" == "installation" ]; then
   ui_print " ";
   ui_print "Creating symlinks...";
+  sysbin="$(ls $root/system/bin)";
+  test $BOOTMODE && existbin="$(ls $imgmnt/$modname/system/bin 2>/dev/null)";
   for applet in `$target/busybox --list`; do
-    if [ "$target" == "$mnt$magisk/bin" ]; then
-      sysbin="$(ls $root/system/bin)";
-      case $sysbin in
-        *$applet*)
-          if $BOOTMODE; then
-            existbin="$(ls $imgmnt/$modname/system/bin)";
-            case $existbin in
-              *$applet*) $target/busybox ln -sf busybox $applet;;
-              *) ;;
-            esac;
+    case $target in
+      */bin)
+        if [ "$(echo "$sysbin" | grep "^$applet$")" ]; then
+          if $BOOTMODE && [ "$(echo "$existbin" | grep "^$applet$")" ]; then
+            $target/busybox ln -sf busybox $applet;
           fi;
-        ;;
-        *) $target/busybox ln -sf busybox $applet;;
-      esac;
-    else
-      $target/busybox ln -sf busybox $applet;
-    fi;
+        else
+          $target/busybox ln -sf busybox $applet;
+        fi;
+      ;;
+      *) $target/busybox ln -sf busybox $applet;;
+    esac;
   done;
   test "$magisk" && chcon -hR 'u:object_r:system_file:s0' "$mnt/$modname";
 else
