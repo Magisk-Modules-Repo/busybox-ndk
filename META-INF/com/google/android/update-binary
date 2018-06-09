@@ -67,12 +67,12 @@ mount /cache;
 set_progress 0.2;
 
 case $(basename "$ZIPFILE") in
-  *uninstall*|*Uninstall*) action=uninstallation;;
+  *uninstall*|*Uninstall*|*UNINSTALL*) action=uninstallation;;
   *) action=installation;;
 esac;
 
 case $(basename "$ZIPFILE") in
-  *system*) system=1; ui_print " "; ui_print "Warning: Forcing a system $action!";;
+  *system*|*System*|*SYSTEM*) system=1; ui_print " "; ui_print "Warning: Forcing a system $action!";;
 esac;
 
 if [ "$action" == "installation" ]; then
