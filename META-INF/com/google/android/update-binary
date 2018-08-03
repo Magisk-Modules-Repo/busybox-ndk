@@ -34,6 +34,9 @@ if $BOOTMODE; then
   if [ ! -f /data/$adb/magisk_merge.img ]; then
     (/system/bin/make_ext4fs -b 4096 -l 64M /data/$adb/magisk_merge.img || /system/bin/mke2fs -b 4096 -t ext4 /data/$adb/magisk_merge.img 64M) >/dev/null;
   fi;
+  test -e /magisk/.core/busybox && magiskbb=/magisk/.core/busybox;
+  test -e /sbin/.core/busybox && magiskbb=/sbin/.core/busybox;
+  test "$magiskbb" && export PATH="$magiskbb:$PATH";
 fi;
 
 ui_print() { $BOOTMODE && echo "$1" || echo -e "ui_print $1\nui_print" >> $OUTFD; }
@@ -64,6 +67,7 @@ ui_print "Mounting...";
 mount -o ro /system;
 mount /data;
 mount /cache;
+test -f /system/system/build.prop && root=/system;
 set_progress 0.2;
 
 case $(basename "$ZIPFILE") in
@@ -90,7 +94,6 @@ if [ "$action" == "installation" ]; then
     arm*|x86*|mips*) ;;
     *) abi=`file_getprop /default.prop ro.product.cpu.abi`;;
   esac;
-  test -f /system/system/build.prop && root=/system;
   case $abi in
     arm*|x86*|mips*) ;;
     *) abi=`file_getprop $root/system/build.prop ro.product.cpu.abi`;;
@@ -112,7 +115,7 @@ fi;
 
 # Magisk clean flash support
 if [ -e /data/$adb/magisk -a ! -e /data/$adb/magisk.img ]; then
-  /system/bin/make_ext4fs -b 4096 -l 64M /data/$adb/magisk.img || /system/bin/mke2fs -b 4096 -t ext4 /data/$adb/magisk.img 64M;
+  make_ext4fs -b 4096 -l 64M /data/$adb/magisk.img || mke2fs -b 4096 -t ext4 /data/$adb/magisk.img 64M;
 fi;
 
 # allow forcing a system installation regardless of su.img/magisk.img detection
@@ -142,13 +145,13 @@ if [ "$suimg" ]; then
   fi;
 else
   # SuperSU BINDSBIN support
-  mnt=$(dirname `find /data -name supersu_is_here | head -n1`);
+  mnt=$(dirname `find /data -name supersu_is_here | head -n1` 2>/dev/null);
   if [ -e "$mnt" -a ! "$system" ]; then
     target=$mnt/xbin;
   else
     mount -o rw,remount /system;
     mount /system;
-    if -d [ "$root/system/xbin" ]; then
+    if [ -d "$root/system/xbin" ]; then
       target=$root/system/xbin;
     else
       target=$root/system/bin;
@@ -208,8 +211,8 @@ if [ "$action" == "installation" ]; then
   for applet in `$target/busybox --list`; do
     case $target in
       */bin)
-        if [ "$(echo "$sysbin" | grep "^$applet$")" ]; then
-          if $BOOTMODE && [ "$(echo "$existbin" | grep "^$applet$")" ]; then
+        if [ "$(echo "$sysbin" | $target/busybox grep "^$applet$")" ]; then
+          if $BOOTMODE && [ "$(echo "$existbin" | $target/busybox grep "^$applet$")" ]; then
             $target/busybox ln -sf busybox $applet;
           fi;
         else
