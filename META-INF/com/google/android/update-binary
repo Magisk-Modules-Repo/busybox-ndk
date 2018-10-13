@@ -70,12 +70,24 @@ mount /cache;
 test -f /system/system/build.prop && root=/system;
 set_progress 0.2;
 
-case $(basename "$ZIPFILE") in
+
+# override zip filename parsing with a settings file
+if [ -f /data/.$modname ]; then
+  choice=$(cat /data/.$modname);
+else
+  choice=$(basename "$ZIPFILE");
+fi;
+
+case $choice in
   *uninstall*|*Uninstall*|*UNINSTALL*) action=uninstallation;;
   *) action=installation;;
 esac;
 
-case $(basename "$ZIPFILE") in
+case $choice in
+  *nolinks*|*NoLinks*|*NOLINKS*) nolinks=1;
+esac;
+
+case $choice in
   *system*|*System*|*SYSTEM*) system=1; ui_print " "; ui_print "Warning: Forcing a system $action!";;
 esac;
 
@@ -204,24 +216,26 @@ test "$action" == "uninstallation" && list="$list busybox";
 $target/busybox rm -f $list;
 
 if [ "$action" == "installation" ]; then
-  ui_print " ";
-  ui_print "Creating symlinks...";
-  sysbin="$(ls $root/system/bin)";
-  test $BOOTMODE && existbin="$(ls $imgmnt/$modname/system/bin 2>/dev/null)";
-  for applet in `$target/busybox --list`; do
-    case $target in
-      */bin)
-        if [ "$(echo "$sysbin" | $target/busybox grep "^$applet$")" ]; then
-          if $BOOTMODE && [ "$(echo "$existbin" | $target/busybox grep "^$applet$")" ]; then
+  if [ ! "$nolinks" ]; then
+    ui_print " ";
+    ui_print "Creating symlinks...";
+    sysbin="$(ls $root/system/bin)";
+    test $BOOTMODE && existbin="$(ls $imgmnt/$modname/system/bin 2>/dev/null)";
+    for applet in `$target/busybox --list`; do
+      case $target in
+        */bin)
+          if [ "$(echo "$sysbin" | $target/busybox grep "^$applet$")" ]; then
+            if $BOOTMODE && [ "$(echo "$existbin" | $target/busybox grep "^$applet$")" ]; then
+              $target/busybox ln -sf busybox $applet;
+            fi;
+          else
             $target/busybox ln -sf busybox $applet;
           fi;
-        else
-          $target/busybox ln -sf busybox $applet;
-        fi;
-      ;;
-      *) $target/busybox ln -sf busybox $applet;;
-    esac;
-  done;
+        ;;
+        *) $target/busybox ln -sf busybox $applet;;
+      esac;
+    done;
+  fi;
   test "$magisk" && chcon -hR 'u:object_r:system_file:s0' "$mnt/$modname";
 else
   test "$magisk" && rm -rf /magisk/$modname /sbin/.core/img/$modname;
