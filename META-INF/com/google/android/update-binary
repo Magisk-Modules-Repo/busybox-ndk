@@ -101,14 +101,14 @@ if [ "$action" == "installation" ]; then
 
   ui_print " ";
   ui_print "Installing...";
-  abi=`getprop ro.product.cpu.abi`;
+  abi=`file_getprop $root/system/build.prop ro.product.cpu.abi`;
   case $abi in
     arm*|x86*|mips*) ;;
-    *) abi=`file_getprop /default.prop ro.product.cpu.abi`;;
+    *) abi=`getprop ro.product.cpu.abi`;;
   esac;
   case $abi in
     arm*|x86*|mips*) ;;
-    *) abi=`file_getprop $root/system/build.prop ro.product.cpu.abi`;;
+    *) abi=`file_getprop /default.prop ro.product.cpu.abi`;;
   esac;
   case $abi in
     arm64*) arch=arm64;;
