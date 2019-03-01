@@ -31,11 +31,12 @@ if $BOOTMODE; then
   OUTFD=/proc/self/fd/0;
   dev=/dev;
   devtmp=/dev/tmp;
-  if [ ! -f /data/$adb/magisk_merge.img ]; then
+  if [ ! -f /data/$adb/magisk_merge.img -a ! -e /data/adb/modules ]; then
     (/system/bin/make_ext4fs -b 4096 -l 64M /data/$adb/magisk_merge.img || /system/bin/mke2fs -b 4096 -t ext4 /data/$adb/magisk_merge.img 64M) >/dev/null;
   fi;
   test -e /magisk/.core/busybox && magiskbb=/magisk/.core/busybox;
   test -e /sbin/.core/busybox && magiskbb=/sbin/.core/busybox;
+  test -e /sbin/.magisk/busybox && magiskbb=/sbin/.magisk/busybox;
   test "$magiskbb" && export PATH="$magiskbb:$PATH";
 fi;
 
@@ -126,7 +127,7 @@ else
 fi;
 
 # Magisk clean flash support
-if [ -e /data/$adb/magisk -a ! -e /data/$adb/magisk.img ]; then
+if [ -e /data/$adb/magisk -a ! -e /data/$adb/magisk.img -a ! -e /data/adb/modules ]; then
   make_ext4fs -b 4096 -l 64M /data/$adb/magisk.img || mke2fs -b 4096 -t ext4 /data/$adb/magisk.img 64M;
 fi;
 
@@ -160,6 +161,14 @@ else
   mnt=$(dirname `find /data -name supersu_is_here | head -n1` 2>/dev/null);
   if [ -e "$mnt" -a ! "$system" ]; then
     target=$mnt/xbin;
+  elif [ -e "/data/adb/modules" ]; then
+    mnt=/data/adb/modules;
+    magisk=/$modname/system;
+    if [ -d "$mnt$magisk/xbin" -o "$magisk" -a -d "$root/system/xbin" ]; then
+      target=$mnt$magisk/xbin;
+    else
+      target=$mnt$magisk/bin;
+    fi;
   else
     mount -o rw,remount /system;
     mount /system;
@@ -187,11 +196,15 @@ else
     touch $mnt/$modname/auto_mount;
     if $BOOTMODE; then
       test -e /magisk && imgmnt=/magisk || imgmnt=/sbin/.core/img;
+      test -e /sbin/.magisk/img && imgmnt=/sbin/.magisk/img;
       if [ "$suimg" == "/data/$adb/magisk_merge.img" ]; then
         mkdir -p "$imgmnt/$modname";
         touch "$imgmnt/$modname/update";
         cp -f module.prop "$imgmnt/$modname/";
       fi;
+    fi;
+    if $BOOTMODE && [ "$mnt" == "/data/adb/modules" ]; then
+      touch "$imgmnt/$modname/update";
     fi;
   fi;
   set_progress 0.8;
@@ -238,7 +251,7 @@ if [ "$action" == "installation" ]; then
   fi;
   test "$magisk" && chcon -hR 'u:object_r:system_file:s0' "$mnt/$modname";
 else
-  test "$magisk" && rm -rf /magisk/$modname /sbin/.core/img/$modname;
+  test "$magisk" && rm -rf /magisk/$modname /sbin/.core/img/$modname /sbin/.magisk/img/$modname /data/adb/modules/$modname;
 fi;
 set_progress 1.0;
 
