@@ -195,16 +195,15 @@ else
     cp -f module.prop $mnt/$modname/;
     touch $mnt/$modname/auto_mount;
     if $BOOTMODE; then
-      test -e /magisk && imgmnt=/magisk || imgmnt=/sbin/.core/img;
-      test -e /sbin/.magisk/img && imgmnt=/sbin/.magisk/img;
       if [ "$suimg" == "/data/$adb/magisk_merge.img" ]; then
+        test -e /magisk && imgmnt=/magisk || imgmnt=/sbin/.core/img;
+        test -e /sbin/.magisk/img && imgmnt=/sbin/.magisk/img;
         mkdir -p "$imgmnt/$modname";
         touch "$imgmnt/$modname/update";
         cp -f module.prop "$imgmnt/$modname/";
+      elif [ "$mnt" == "/data/adb/modules" ]; then
+        touch "$mnt/$modname/update";
       fi;
-    fi;
-    if $BOOTMODE && [ "$mnt" == "/data/adb/modules" ]; then
-      touch "$imgmnt/$modname/update";
     fi;
   fi;
   set_progress 0.8;
