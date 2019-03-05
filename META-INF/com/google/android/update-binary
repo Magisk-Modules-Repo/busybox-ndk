@@ -162,7 +162,7 @@ else
   if [ -e "$mnt" -a ! "$system" ]; then
     target=$mnt/xbin;
   elif [ -e "/data/adb/modules" ]; then
-    mnt=/data/adb/modules;
+    mnt=/data/adb/modules_update;
     magisk=/$modname/system;
     if [ -d "$mnt$magisk/xbin" -o "$magisk" -a -d "$root/system/xbin" ]; then
       target=$mnt$magisk/xbin;
@@ -195,15 +195,12 @@ else
     cp -f module.prop $mnt/$modname/;
     touch $mnt/$modname/auto_mount;
     if $BOOTMODE; then
-      if [ "$suimg" == "/data/$adb/magisk_merge.img" ]; then
-        test -e /magisk && imgmnt=/magisk || imgmnt=/sbin/.core/img;
-        test -e /sbin/.magisk/img && imgmnt=/sbin/.magisk/img;
-        mkdir -p "$imgmnt/$modname";
-        touch "$imgmnt/$modname/update";
-        cp -f module.prop "$imgmnt/$modname/";
-      elif [ "$mnt" == "/data/adb/modules" ]; then
-        touch "$mnt/$modname/update";
-      fi;
+      test -e /magisk && imgmnt=/magisk || imgmnt=/sbin/.core/img;
+      test -e /sbin/.magisk/img && imgmnt=/sbin/.magisk/img;
+      test -e /data/adb/modules && imgmnt=/data/adb/modules;
+      mkdir -p "$imgmnt/$modname";
+      touch "$imgmnt/$modname/update";
+      cp -f module.prop "$imgmnt/$modname/";
     fi;
   fi;
   set_progress 0.8;
