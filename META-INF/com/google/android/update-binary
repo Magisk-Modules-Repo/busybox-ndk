@@ -161,7 +161,7 @@ else
   mnt=$(dirname `find /data -name supersu_is_here | head -n1` 2>/dev/null);
   if [ -e "$mnt" -a ! "$system" ]; then
     target=$mnt/xbin;
-  elif [ -e "/data/adb/modules" ]; then
+  elif [ -e "/data/adb/modules" -a ! "$system" ]; then
     mnt=/data/adb/modules_update;
     magisk=/$modname/system;
     if [ -d "$mnt$magisk/xbin" -o "$magisk" -a -d "$root/system/xbin" ]; then
