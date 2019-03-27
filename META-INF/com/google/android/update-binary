@@ -8,7 +8,7 @@
 mkdir -p /dev/tmp;
 cd /dev/tmp;
 
-unzip -oj "$3" install.sh;
+unzip -o "$3" install.sh;
 
 . /dev/tmp/install.sh;
 
