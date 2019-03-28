@@ -45,6 +45,79 @@ ui_print() { $BOOTMODE && echo "$1" || echo -e "ui_print $1\nui_print" >> $OUTFD
 show_progress() { echo "progress $1 $2" >> $OUTFD; }
 set_progress() { echo "set_progress $1" >> $OUTFD; }
 file_getprop() { grep "^$2" "$1" | head -n1 | cut -d= -f2; }
+find_target() {
+  # Magisk clean flash support
+  if [ -e /data/$adb/magisk -a ! -e /data/$adb/magisk.img -a ! -e /data/adb/modules ]; then
+    make_ext4fs -b 4096 -l 64M /data/$adb/magisk.img || mke2fs -b 4096 -t ext4 /data/$adb/magisk.img 64M;
+  fi;
+
+  # allow forcing a system installation regardless of su.img/magisk.img detection
+  if [ ! "$system" ]; then
+    suimg=`(ls /data/$adb/magisk_merge.img || ls /data/su.img || ls /cache/su.img || ls /data/$adb/magisk.img || ls /cache/magisk.img) 2>/dev/null`;
+    mnt=$devtmp/$(basename $suimg .img);
+  fi;
+  if [ "$suimg" ]; then
+    umount $mnt;
+    test ! -e $mnt && mkdir -p $mnt;
+    mount -t ext4 -o rw,noatime $suimg $mnt;
+    for i in 0 1 2 3 4 5 6 7; do
+      test "$(mount | grep " $mnt ")" && break;
+      loop=/dev/block/loop$i;
+      if [ ! -f "$loop" -o ! -b "$loop" ]; then
+        mknod $loop b 7 $i;
+      fi;
+      losetup $loop $suimg && mount -t ext4 -o loop,noatime $loop $mnt;
+    done;
+    case $mnt in
+      */magisk*) magisk=/$modname/system;;
+    esac;
+    if [ -d "$mnt$magisk/xbin" -o "$magisk" -a -d "$root/system/xbin" ]; then
+      target=$mnt$magisk/xbin;
+    else
+      target=$mnt$magisk/bin;
+    fi;
+  else
+    # SuperSU BINDSBIN support
+    mnt=$(dirname `find /data -name supersu_is_here | head -n1` 2>/dev/null);
+    if [ -e "$mnt" -a ! "$system" ]; then
+      target=$mnt/xbin;
+    elif [ -e "/data/adb/modules" -a ! "$system" ]; then
+      mnt=/data/adb/modules_update;
+      magisk=/$modname/system;
+      if [ -d "$mnt$magisk/xbin" -o "$magisk" -a -d "$root/system/xbin" ]; then
+        target=$mnt$magisk/xbin;
+      else
+        target=$mnt$magisk/bin;
+      fi;
+    else
+      mount -o rw,remount /system;
+      mount /system;
+      if [ -d "$root/system/xbin" ]; then
+        target=$root/system/xbin;
+      else
+        target=$root/system/bin;
+      fi;
+    fi;
+  fi;
+  ui_print "Using path: $target";
+}
+custom_cleanup() {
+  cleanup="$target";
+  if [ "$target" == "$mnt$magisk/xbin" -a -f "$mnt$magisk/bin/busybox" ]; then
+    $target/busybox rm -f $mnt$magisk/bin/busybox;
+    cleanup="$mnt$magisk/bin $target";
+  fi;
+  for dir in $cleanup; do
+    cd $dir;
+    for i in $(ls -al `find -type l` | $target/busybox awk '{ print $(NF-2) ":" $NF }'); do
+      case $(echo $i | $target/busybox cut -d: -f2) in
+        *busybox) list="$list $dir/$(echo $i | $target/busybox cut -d: -f1)";;
+      esac;
+    done;
+  done;
+  test "$action" == "uninstallation" && list="$list busybox";
+  $target/busybox rm -f $list;
+}
 abort() {
   ui_print " ";
   ui_print "Your system has not been changed.";
@@ -122,72 +195,9 @@ if [ "$action" == "installation" ]; then
     *) ui_print "Unknown architecture: $abi"; abort;;
   esac;
   ui_print "Using architecture: $arch";
-else
-  ui_print " ";
-  ui_print "Uninstalling...";
-fi;
 
-# Magisk clean flash support
-if [ -e /data/$adb/magisk -a ! -e /data/$adb/magisk.img -a ! -e /data/adb/modules ]; then
-  make_ext4fs -b 4096 -l 64M /data/$adb/magisk.img || mke2fs -b 4096 -t ext4 /data/$adb/magisk.img 64M;
-fi;
+  find_target;
 
-# allow forcing a system installation regardless of su.img/magisk.img detection
-if [ ! "$system" ]; then
-  suimg=`(ls /data/$adb/magisk_merge.img || ls /data/su.img || ls /cache/su.img || ls /data/$adb/magisk.img || ls /cache/magisk.img) 2>/dev/null`;
-  mnt=$devtmp/$(basename $suimg .img);
-fi;
-if [ "$suimg" ]; then
-  umount $mnt;
-  test ! -e $mnt && mkdir -p $mnt;
-  mount -t ext4 -o rw,noatime $suimg $mnt;
-  for i in 0 1 2 3 4 5 6 7; do
-    test "$(mount | grep " $mnt ")" && break;
-    loop=/dev/block/loop$i;
-    if [ ! -f "$loop" -o ! -b "$loop" ]; then
-      mknod $loop b 7 $i;
-    fi;
-    losetup $loop $suimg && mount -t ext4 -o loop,noatime $loop $mnt;
-  done;
-  case $mnt in
-    */magisk*) magisk=/$modname/system;;
-  esac;
-  if [ -d "$mnt$magisk/xbin" -o "$magisk" -a -d "$root/system/xbin" ]; then
-    target=$mnt$magisk/xbin;
-  else
-    target=$mnt$magisk/bin;
-  fi;
-else
-  # SuperSU BINDSBIN support
-  mnt=$(dirname `find /data -name supersu_is_here | head -n1` 2>/dev/null);
-  if [ -e "$mnt" -a ! "$system" ]; then
-    target=$mnt/xbin;
-  elif [ -e "/data/adb/modules" -a ! "$system" ]; then
-    mnt=/data/adb/modules_update;
-    magisk=/$modname/system;
-    if [ -d "$mnt$magisk/xbin" -o "$magisk" -a -d "$root/system/xbin" ]; then
-      target=$mnt$magisk/xbin;
-    else
-      target=$mnt$magisk/bin;
-    fi;
-  else
-    mount -o rw,remount /system;
-    mount /system;
-    if [ -d "$root/system/xbin" ]; then
-      target=$root/system/xbin;
-    else
-      target=$root/system/bin;
-    fi;
-  fi;
-fi;
-ui_print "Using path: $target";
-if [ "$action" == "uninstallation" ]; then
-  if [ ! -f "$target/busybox" ]; then
-    ui_print " ";
-    ui_print "No busybox installation found!";
-    abort;
-  fi;
-else
   mkdir -p $target;
   cp -f busybox-$arch $target/busybox;
   chown 0:0 "$target/busybox";
@@ -208,24 +218,8 @@ else
 
   ui_print " ";
   ui_print "Cleaning...";
-fi;
-cleanup="$target";
-if [ "$target" == "$mnt$magisk/xbin" -a -f "$mnt$magisk/bin/busybox" ]; then
-  $target/busybox rm -f $mnt$magisk/bin/busybox;
-  cleanup="$mnt$magisk/bin $target";
-fi;
-for dir in $cleanup; do
-  cd $dir;
-  for i in $(ls -al `find -type l` | $target/busybox awk '{ print $(NF-2) ":" $NF }'); do
-    case $(echo $i | $target/busybox cut -d: -f2) in
-      *busybox) list="$list $dir/$(echo $i | $target/busybox cut -d: -f1)";;
-    esac;
-  done;
-done;
-test "$action" == "uninstallation" && list="$list busybox";
-$target/busybox rm -f $list;
+  custom_cleanup;
 
-if [ "$action" == "installation" ]; then
   if [ ! "$nolinks" ]; then
     ui_print " ";
     ui_print "Creating symlinks...";
@@ -248,6 +242,18 @@ if [ "$action" == "installation" ]; then
   fi;
   test "$magisk" && chcon -hR 'u:object_r:system_file:s0' "$mnt/$modname";
 else
+  ui_print " ";
+  ui_print "Uninstalling...";
+
+  find_target;
+
+  if [ ! -f "$target/busybox" ]; then
+    ui_print " ";
+    ui_print "No busybox installation found!";
+    abort;
+  fi;
+
+  custom_cleanup;
   test "$magisk" && rm -rf /magisk/$modname /sbin/.core/img/$modname /sbin/.magisk/img/$modname /data/adb/modules/$modname;
 fi;
 set_progress 1.0;
