@@ -115,7 +115,6 @@ custom_cleanup() {
       esac;
     done;
   done;
-  test "$action" == "uninstallation" && list="$list busybox";
   $target/busybox rm -f $list;
 }
 abort() {
@@ -253,6 +252,7 @@ else
     abort;
   fi;
 
+  list=busybox;
   custom_cleanup;
   test "$magisk" && rm -rf /magisk/$modname /sbin/.core/img/$modname /sbin/.magisk/img/$modname /data/adb/modules/$modname;
 fi;
