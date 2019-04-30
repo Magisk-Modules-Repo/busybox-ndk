@@ -24,7 +24,7 @@ if [ "$?" -eq "0" ]; then
   done;
 fi;
 
-# Magisk boot mode support
+# Magisk Manager/booted flashing support
 test -e /data/adb/magisk && adb=adb;
 ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true || BOOTMODE=false;
 $BOOTMODE || ps -A 2>/dev/null | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
@@ -32,13 +32,15 @@ if $BOOTMODE; then
   OUTFD=/proc/self/fd/0;
   dev=/dev;
   devtmp=/dev/tmp;
-  if [ ! -f /data/$adb/magisk_merge.img -a ! -e /data/adb/modules ]; then
-    (/system/bin/make_ext4fs -b 4096 -l 64M /data/$adb/magisk_merge.img || /system/bin/mke2fs -b 4096 -t ext4 /data/$adb/magisk_merge.img 64M) >/dev/null;
+  if [ -e /data/$adb/magisk ]; then
+    if [ ! -f /data/$adb/magisk_merge.img -a ! -e /data/adb/modules ]; then
+      (/system/bin/make_ext4fs -b 4096 -l 64M /data/$adb/magisk_merge.img || /system/bin/mke2fs -b 4096 -t ext4 /data/$adb/magisk_merge.img 64M) >/dev/null;
+    fi;
+    test -e /magisk/.core/busybox && magiskbb=/magisk/.core/busybox;
+    test -e /sbin/.core/busybox && magiskbb=/sbin/.core/busybox;
+    test -e /sbin/.magisk/busybox && magiskbb=/sbin/.magisk/busybox;
+    test "$magiskbb" && export PATH="$magiskbb:$PATH";
   fi;
-  test -e /magisk/.core/busybox && magiskbb=/magisk/.core/busybox;
-  test -e /sbin/.core/busybox && magiskbb=/sbin/.core/busybox;
-  test -e /sbin/.magisk/busybox && magiskbb=/sbin/.magisk/busybox;
-  test "$magiskbb" && export PATH="$magiskbb:$PATH";
 fi;
 
 ui_print() { $BOOTMODE && echo "$1" || echo -e "ui_print $1\nui_print" >> $OUTFD; }
