@@ -92,8 +92,7 @@ find_target() {
         target=$mnt$magisk/bin;
       fi;
     else
-      mount -o rw,remount /system;
-      mount /system;
+      mount -o rw,remount /system || mount /system || mount -o rw,remount / && sar=1;
       if [ -d "$root/system/xbin" ]; then
         target=$root/system/xbin;
       else
@@ -125,7 +124,8 @@ abort() {
   ui_print " ";
   ui_print "Script will now exit...";
   ui_print " ";
-  umount $mnt;
+  test "$suimg" && umount $mnt;
+  test "$sar" && mount -o ro,remount /;
   umount /system;
   umount /data;
   umount /cache;
@@ -265,6 +265,7 @@ ui_print "Unmounting...";
 cd /;
 test "$suimg" && umount $mnt;
 test "$loop" && losetup -d $loop;
+test "$sar" && mount -o ro,remount /;
 umount /system;
 umount /data;
 umount /cache;
