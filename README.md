@@ -5,6 +5,7 @@
 ### Links
 * [GitHub](https://github.com/Magisk-Modules-Repo/Busybox-Installer)
 * [Support](https://forum.xda-developers.com/showthread.php?t=2239421)
+* [Sponsor](https://github.com/sponsors/osm0sis)
 * [Donate](https://forum.xda-developers.com/donatetome.php?u=4544860)
 
 ### Description
