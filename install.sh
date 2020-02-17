@@ -66,7 +66,8 @@ find_target() {
       test "$(mount | grep " $mnt ")" && break;
       loop=/dev/block/loop$i;
       if [ ! -f "$loop" -o ! -b "$loop" ]; then
-        mknod $loop b 7 $i;
+        test -e /dev/block/loop1 && minorx=$(ls -l /dev/block/loop1 | cut -d, -f2 | cut -c4) || minorx=1;
+        mknod $loop b 7 $((i * minorx));
       fi;
       losetup $loop $suimg && mount -t ext4 -o loop,noatime $loop $mnt;
     done;
