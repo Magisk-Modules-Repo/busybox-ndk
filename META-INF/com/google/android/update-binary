@@ -1,14 +1,14 @@
 #!/sbin/sh
-# Module Workaround Backend: Recovery Flashable Zip
+# Diffusion Installer Backend (DO NOT CHANGE)
 # osm0sis @ xda-developers
 
 # avoid forced Magisk update-binary replacement breakage
-# see install.sh for what was previously update-binary
+# see customize.sh for what was previously update-binary
 
 mkdir -p /dev/tmp;
 cd /dev/tmp;
 
-unzip -o "$3" install.sh;
+unzip -o "$3" customize.sh;
 
-. /dev/tmp/install.sh;
+. /dev/tmp/customize.sh;
 
