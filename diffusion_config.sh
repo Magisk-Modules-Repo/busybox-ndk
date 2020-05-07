@@ -11,6 +11,10 @@ custom_zip_opts() {
   case $choice in
     *nolinks*|*NoLinks*|*NOLINKS*) NOLINKS=1;
   esac;
+  case $choice in
+    *noselinux*|*NoSELinux*|*NOSELINUX*) ;;
+    *) SELINUX=-selinux;;
+  esac;
 }
 
 custom_target() {
@@ -18,10 +22,13 @@ custom_target() {
 }
 
 custom_install() {
-  ui_print "Using architecture: $ARCH";
+  case $ARCH in
+    mips*) unset SELINUX;;
+  esac;
+  ui_print "Using architecture: $ARCH$SELINUX";
   ui_print "Using path: $XBIN";
   mkdir -p $XBIN;
-  cp -f busybox-$ARCH $XBIN/busybox;
+  cp -f busybox-$ARCH$SELINUX $XBIN/busybox;
   set_perm 0 0 755 $XBIN/busybox;
 }
 
