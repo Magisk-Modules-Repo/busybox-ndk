@@ -181,6 +181,11 @@ umount_all() {
 setup_env() {
   $BOOTMODE && return 1;
   mount -o bind /dev/urandom /dev/random;
+  if [ -L /etc ]; then
+    setup_mountpoint /etc;
+    cp -af /etc_link/* /etc;
+    sed -i 's; / ; /system_root ;' /etc/fstab;
+  fi;
   umount_all;
   mount_all;
   OLD_LD_PATH=$LD_LIBRARY_PATH;
@@ -211,7 +216,8 @@ restore_env() {
   test "$OLD_LD_PRE" && export LD_PRELOAD=$OLD_LD_PRE;
   test "$OLD_LD_CFG" && export LD_CONFIG_FILE=$OLD_LD_CFG;
   umount_all;
-  (for dir in /apex /system /system_root; do
+  test -L /etc_link && rm -rf /etc/*;
+  (for dir in /apex /system /system_root /etc; do
     if [ -L "${dir}_link" ]; then
       rmdir $dir;
       mv -f ${dir}_link $dir;
@@ -313,11 +319,13 @@ find_target() {
     if [ ! "$MNT" ]; then
       MNT=$POSTINSTALL/system;
       if [ ! -d /postinstall/tmp ]; then
-        for block in system vendor; do
-          for slot in "" _a _b; do
-            blockdev --setrw /dev/block/mapper/$block$slot 2>/dev/null;
+        if [ -d /dev/block/mapper ]; then
+          for block in system vendor; do
+            for slot in "" _a _b; do
+              blockdev --setrw /dev/block/mapper/$block$slot 2>/dev/null;
+            done;
           done;
-        done;
+        fi;
         mount -o rw,remount -t auto /system || mount /system || mount -o rw,remount -t auto / && SAR=1;
         mount -o rw,remount -t auto /vendor 2>/dev/null;
       fi;
