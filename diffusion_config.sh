@@ -7,6 +7,10 @@ AUTH_NAME="osm0sis @ xda-developers";
 USE_ARCH=true
 USE_ZIP_OPTS=true
 
+custom_setup() {
+  return # stub
+}
+
 custom_zip_opts() {
   case $choice in
     *nolinks*|*NoLinks*|*NOLINKS*) NOLINKS=1;

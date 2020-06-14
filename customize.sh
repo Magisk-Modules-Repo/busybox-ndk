@@ -238,7 +238,6 @@ find_zip_opts() {
   fi;
   case $choice in
     *uninstall*|*Uninstall*|*UNINSTALL*) ACTION=uninstallation;;
-    *) ACTION=installation;;
   esac;
   case $choice in
     *system*|*System*|*SYSTEM*) FORCE_SYSTEM=1; ui_print " "; ui_print "Warning: Forcing a system $ACTION!";;
@@ -469,6 +468,7 @@ if ! is_mounted /cache; then
   mount /cache 2>/dev/null && UMOUNT_CACHE=1;
 fi;
 
+custom_setup;
 find_zip_opts;
 set_progress 0.2;
 
