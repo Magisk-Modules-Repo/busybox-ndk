@@ -5,7 +5,11 @@
 SKIPUNZIP=1
 
 # make sure variables are correct regardless of Magisk or recovery sourcing the script
-[ -z $OUTFD ] && OUTFD=/proc/self/fd/$2 || OUTFD=/proc/self/fd/$OUTFD;
+if [ -z $OUTFD ]; then
+  OUTFD=/proc/self/fd/$2;
+else
+  OUTFD=/proc/self/fd/$OUTFD;
+fi;
 [ ! -z $ZIP ] && { ZIPFILE="$ZIP"; unset ZIP; }
 [ -z $ZIPFILE ] && ZIPFILE="$3";
 DIR=$(dirname "$ZIPFILE");
@@ -27,7 +31,8 @@ fi;
 
 # Magisk Manager/booted flashing support
 test -e /data/adb/magisk && ADB=adb;
-ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true || BOOTMODE=false;
+BOOTMODE=false;
+ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
 $BOOTMODE || ps -A 2>/dev/null | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
 if $BOOTMODE; then
   OUTFD=/proc/self/fd/0;
@@ -45,7 +50,13 @@ fi;
 # postinstall addon.d-v2 awareness
 test -d /postinstall/tmp && POSTINSTALL=/postinstall;
 
-ui_print() { $BOOTMODE && echo "$1" || echo -e "ui_print $1\nui_print" >> $OUTFD; }
+ui_print() {
+  if $BOOTMODE; then
+    echo "$1";
+  else
+    echo -e "ui_print $1\nui_print" >> $OUTFD;
+  fi;
+}
 show_progress() { echo "progress $1 $2" >> $OUTFD; }
 set_progress() { echo "set_progress $1" >> $OUTFD; }
 file_getprop() { grep "^$2" "$1" | head -n1 | cut -d= -f2-; }
@@ -79,7 +90,8 @@ mount_apex() {
   test -d /system/apex || return 1;
   local apex dest loop minorx num;
   setup_mountpoint /apex;
-  test -e /dev/block/loop1 && minorx=$(ls -l /dev/block/loop1 | awk '{ print $6 }') || minorx=1;
+  minorx=1;
+  test -e /dev/block/loop1 && minorx=$(ls -l /dev/block/loop1 | awk '{ print $6 }');
   num=0;
   for apex in /system/apex/*; do
     dest=/apex/$(basename $apex .apex);
@@ -197,10 +209,18 @@ setup_env() {
       local propdir propfile propval;
       for propdir in / /system_root /system /vendor /odm /product; do
         for propfile in default.prop build.prop; do
-          test "$propval" && break 2 || propval="$(file_getprop $propdir/$propfile $1 2>/dev/null)";
+          if [ "$propval" ]; then
+            break 2;
+          else
+            propval="$(file_getprop $propdir/$propfile $1 2>/dev/null)";
+          fi;
         done;
       done;
-      test "$propval" && echo "$propval" || echo "";
+      if [ "$propval" ]; then
+        echo "$propval";
+      else
+        echo "";
+      fi;
     }
   elif [ ! "$(getprop ro.build.type 2>/dev/null)" ]; then
     getprop() {
@@ -269,7 +289,8 @@ mount_su() {
   test ! -e $MNT && mkdir -p $MNT;
   mount -t ext4 -o rw,noatime $SUIMG $MNT;
   if [ $? != 0 ]; then
-    test -e /dev/block/loop1 && minorx=$(ls -l /dev/block/loop1 | cut -d, -f2 | cut -c4) || minorx=1;
+    minorx=1;
+    test -e /dev/block/loop1 && minorx=$(ls -l /dev/block/loop1 | cut -d, -f2 | cut -c4);
     i=0;
     while [ $i -lt 64 ]; do
       LOOP=/dev/block/loop$i;
@@ -373,7 +394,8 @@ update_magisk() {
   cp -fp module.prop $MNT/$MODID/;
   touch $MNT/$MODID/auto_mount;
   if $BOOTMODE; then
-    test -e /magisk && IMGMNT=/magisk || IMGMNT=/sbin/.core/img;
+    IMGMNT=/sbin/.core/img;
+    test -e /magisk && IMGMNT=/magisk;
     test -e /sbin/.magisk/img && IMGMNT=/sbin/.magisk/img;
     test -e /data/adb/modules && IMGMNT=/data/adb/modules;
     mkdir -p "$IMGMNT/$MODID";
