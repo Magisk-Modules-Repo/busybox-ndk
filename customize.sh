@@ -87,13 +87,13 @@ setup_mountpoint() {
 }
 is_mounted() { mount | grep -q " $1 "; }
 mount_apex() {
-  test -d /system/apex || return 1;
+  test -d /system_root/system/apex || return 1;
   local apex dest loop minorx num;
   setup_mountpoint /apex;
   minorx=1;
   test -e /dev/block/loop1 && minorx=$(ls -l /dev/block/loop1 | awk '{ print $6 }');
   num=0;
-  for apex in /system/apex/*; do
+  for apex in /system_root/system/apex/*; do
     dest=/apex/$(basename $apex .apex);
     test "$dest" == /apex/com.android.runtime.release && dest=/apex/com.android.runtime;
     mkdir -p $dest;
@@ -157,34 +157,44 @@ mount_all() {
         mount --move /system /system_root;
       fi;
       if [ $? != 0 ]; then
-        umount /system;
-        umount -l /system 2>/dev/null;
-        test -e /dev/block/bootdevice/by-name/system || local slot=$(getprop ro.boot.slot_suffix 2>/dev/null);
-        mount -o ro -t auto /dev/block/bootdevice/by-name/system$slot /system_root;
+        (umount /system;
+        umount -l /system) 2>/dev/null;
+        if [ "$(getprop ro.boot.dynamic_partitions 2>/dev/null)" ]; then
+          test -e /dev/block/mapper/system || local slot=$(getprop ro.boot.slot_suffix 2>/dev/null);
+          mount -o ro -t auto /dev/block/mapper/vendor$slot /vendor;
+          mount -o ro -t auto /dev/block/mapper/system$slot /system_root;
+        else
+          test -e /dev/block/bootdevice/by-name/system || local slot=$(getprop ro.boot.slot_suffix 2>/dev/null);
+          mount -o ro -t auto /dev/block/bootdevice/by-name/system$slot /system_root;
+        fi;
       fi;
     ;;
   esac;
   if is_mounted /system_root; then
+    mount_apex;
     if [ -f /system_root/build.prop ]; then
       mount -o bind /system_root /system;
     else
       mount -o bind /system_root/system /system;
     fi;
   fi;
-  mount_apex;
 }
 umount_all() {
-  (umount_apex;
-  if [ ! -d /postinstall/tmp ]; then
+  (if [ ! -d /postinstall/tmp ]; then
     umount /system;
     umount -l /system;
+    umount_apex;
     if [ -e /system_root ]; then
       umount /system_root;
       umount -l /system_root;
     fi;
+    umount /mnt/system;
+    umount -l /mnt/system;
   fi;
   umount /vendor;
   umount -l /vendor;
+  umount /mnt/vendor;
+  umount -l /mnt/vendor;
   if [ "$UMOUNT_DATA" ]; then
     umount /data;
     umount -l /data;
@@ -346,7 +356,8 @@ find_target() {
             done;
           done;
         fi;
-        mount -o rw,remount -t auto /system || mount /system || mount -o rw,remount -t auto / && SAR=1;
+        mount -o rw,remount -t auto /system || mount /system;
+        test $? != 0 && mount -o rw,remount -t auto / && SAR=1;
         mount -o rw,remount -t auto /vendor 2>/dev/null;
       fi;
     fi;

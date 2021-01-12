@@ -6,7 +6,7 @@
 * [GitHub](https://github.com/Magisk-Modules-Repo/Busybox-Installer)
 * [Support](https://forum.xda-developers.com/showthread.php?t=2239421)
 * [Sponsor](https://github.com/sponsors/osm0sis)
-* [Donate](https://forum.xda-developers.com/donatetome.php?u=4544860)
+* [Donate](https://www.paypal.me/osm0sis)
 
 ### Description
 As a byproduct of building my own static busybox compiles in all supported Android architectures for my [AIK-mobile](https://forum.xda-developers.com/showthread.php?t=2073775) package I figured I might as well offer them up separately as well since there weren't any providers making Android x64 builds when I was researching.
