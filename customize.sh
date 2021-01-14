@@ -196,14 +196,14 @@ umount_all() {
   (if [ ! -d /postinstall/tmp ]; then
     umount /system;
     umount -l /system;
-    umount_apex;
     if [ -e /system_root ]; then
       umount /system_root;
       umount -l /system_root;
     fi;
-    umount /mnt/system;
-    umount -l /mnt/system;
   fi;
+  umount /mnt/system;
+  umount -l /mnt/system;
+  umount_apex;
   umount /vendor;
   umount -l /vendor;
   umount /mnt/vendor;
