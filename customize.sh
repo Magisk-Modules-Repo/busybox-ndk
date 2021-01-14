@@ -78,6 +78,16 @@ set_perm_recursive() {
     shift;
   done;
 }
+find_slot() {
+  local slot=$(getprop ro.boot.slot_suffix 2>/dev/null);
+  test "$slot" || slot=$(grep -o 'androidboot.slot_suffix=.*$' /proc/cmdline | cut -d\  -f1 | cut -d= -f2);
+  if [ ! "$slot" ]; then
+    slot=$(getprop ro.boot.slot 2>/dev/null);
+    test "$slot" || slot=$(grep -o 'androidboot.slot=.*$' /proc/cmdline | cut -d\  -f1 | cut -d= -f2);
+    test "$slot" && slot=_$slot;
+  fi;
+  test "$slot" && echo "$slot";
+}
 setup_mountpoint() {
   test -L $1 && mv -f $1 ${1}_link;
   if [ ! -d $1 ]; then
@@ -137,9 +147,11 @@ umount_apex() {
   unset ANDROID_RUNTIME_ROOT ANDROID_TZDATA_ROOT BOOTCLASSPATH;
 }
 mount_all() {
+  if ! is_mounted /cache; then
+    mount /cache 2>/dev/null && UMOUNT_CACHE=1;
+  fi;
   if ! is_mounted /data; then
-    mount /data;
-    UMOUNT_DATA=1;
+    mount /data && UMOUNT_DATA=1;
   fi;
   mount -o ro -t auto /vendor 2>/dev/null;
   setup_mountpoint $ANDROID_ROOT;
@@ -159,12 +171,13 @@ mount_all() {
       if [ $? != 0 ]; then
         (umount /system;
         umount -l /system) 2>/dev/null;
-        if [ "$(getprop ro.boot.dynamic_partitions 2>/dev/null)" ]; then
-          test -e /dev/block/mapper/system || local slot=$(getprop ro.boot.slot_suffix 2>/dev/null);
+        if [ -d /dev/block/mapper ]; then
+          test -e /dev/block/mapper/system || local slot=$(find_slot);
           mount -o ro -t auto /dev/block/mapper/vendor$slot /vendor;
           mount -o ro -t auto /dev/block/mapper/system$slot /system_root;
         else
-          test -e /dev/block/bootdevice/by-name/system || local slot=$(getprop ro.boot.slot_suffix 2>/dev/null);
+          test -e /dev/block/bootdevice/by-name/system || local slot=$(find_slot);
+          mount -o ro -t auto /dev/block/bootdevice/by-name/vendor$slot /vendor 2>/dev/null;
           mount -o ro -t auto /dev/block/bootdevice/by-name/system$slot /system_root;
         fi;
       fi;
@@ -198,6 +211,10 @@ umount_all() {
   if [ "$UMOUNT_DATA" ]; then
     umount /data;
     umount -l /data;
+  fi;
+  if [ "$UMOUNT_CACHE" ]; then
+    umount /cache;
+    umount -l /cache;
   fi) 2>/dev/null;
 }
 setup_env() {
@@ -497,9 +514,6 @@ show_progress 1.34 0;
 ui_print " ";
 ui_print "Mounting...";
 setup_env;
-if ! is_mounted /cache; then
-  mount /cache 2>/dev/null && UMOUNT_CACHE=1;
-fi;
 
 custom_setup;
 find_zip_opts;
@@ -558,10 +572,6 @@ cd /;
 test "$SUIMG" && umount $MNT;
 test "$LOOP" && losetup -d $LOOP;
 test "$SAR" && mount -o ro,remount -t auto /;
-if [ "$UMOUNT_CACHE" ]; then
-  umount /cache;
-  umount -l /cache;
-fi;
 restore_env;
 set_progress 1.2;
 
