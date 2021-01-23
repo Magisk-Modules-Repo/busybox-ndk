@@ -42,7 +42,7 @@ custom_postinstall() {
     ui_print " ";
     ui_print "Creating symlinks...";
     sysbin="$(ls /system/bin)";
-    test $BOOTMODE && existbin="$(ls $IMGMNT/$MODID/system/bin 2>/dev/null)";
+    $BOOTMODE && existbin="$(ls $IMGMNT/$MODID/system/bin 2>/dev/null)";
     for applet in $($XBIN/busybox --list); do
       case $XBIN in
         */bin)

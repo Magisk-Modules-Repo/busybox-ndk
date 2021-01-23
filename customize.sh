@@ -14,6 +14,8 @@ fi;
 [ -z $ZIPFILE ] && ZIPFILE="$3";
 DIR=$(dirname "$ZIPFILE");
 
+[ "$ANDROID_ROOT" ] || ANDROID_ROOT=/system;
+
 # embedded mode support
 if readlink /proc/$$/fd/$2 2>/dev/null | grep -q /tmp; then
   # rerouted to log file, so suppress recovery ui commands
@@ -30,7 +32,7 @@ if readlink /proc/$$/fd/$2 2>/dev/null | grep -q /tmp; then
 fi;
 
 # Magisk Manager/booted flashing support
-test -e /data/adb/magisk && ADB=adb;
+[ -e /data/adb/magisk ] && ADB=adb;
 BOOTMODE=false;
 ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
 $BOOTMODE || ps -A 2>/dev/null | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
@@ -40,15 +42,15 @@ if $BOOTMODE; then
     if [ ! -f /data/$ADB/magisk_merge.img -a ! -e /data/adb/modules ]; then
       (/system/bin/make_ext4fs -b 4096 -l 64M /data/$ADB/magisk_merge.img || /system/bin/mke2fs -b 4096 -t ext4 /data/$ADB/magisk_merge.img 64M) >/dev/null;
     fi;
-    test -e /magisk/.core/busybox && MAGISKBB=/magisk/.core/busybox;
-    test -e /sbin/.core/busybox && MAGISKBB=/sbin/.core/busybox;
-    test -e /sbin/.magisk/busybox && MAGISKBB=/sbin/.magisk/busybox;
-    test "$MAGISKBB" && export PATH="$MAGISKBB:$PATH";
+    [ -e /magisk/.core/busybox ] && MAGISKBB=/magisk/.core/busybox;
+    [ -e /sbin/.core/busybox ] && MAGISKBB=/sbin/.core/busybox;
+    [ -e /sbin/.magisk/busybox ] && MAGISKBB=/sbin/.magisk/busybox;
+    [ "$MAGISKBB" ] && export PATH="$MAGISKBB:$PATH";
   fi;
 fi;
 
 # postinstall addon.d-v2 awareness
-test -d /postinstall/tmp && POSTINSTALL=/postinstall;
+[ -d /postinstall/tmp ] && POSTINSTALL=/postinstall;
 
 ui_print() {
   if $BOOTMODE; then
@@ -80,16 +82,16 @@ set_perm_recursive() {
 }
 find_slot() {
   local slot=$(getprop ro.boot.slot_suffix 2>/dev/null);
-  test "$slot" || slot=$(grep -o 'androidboot.slot_suffix=.*$' /proc/cmdline | cut -d\  -f1 | cut -d= -f2);
+  [ "$slot" ] || slot=$(grep -o 'androidboot.slot_suffix=.*$' /proc/cmdline | cut -d\  -f1 | cut -d= -f2);
   if [ ! "$slot" ]; then
     slot=$(getprop ro.boot.slot 2>/dev/null);
-    test "$slot" || slot=$(grep -o 'androidboot.slot=.*$' /proc/cmdline | cut -d\  -f1 | cut -d= -f2);
-    test "$slot" && slot=_$slot;
+    [ "$slot" ] || slot=$(grep -o 'androidboot.slot=.*$' /proc/cmdline | cut -d\  -f1 | cut -d= -f2);
+    [ "$slot" ] && slot=_$slot;
   fi;
-  test "$slot" && echo "$slot";
+  [ "$slot" ] && echo "$slot";
 }
 setup_mountpoint() {
-  test -L $1 && mv -f $1 ${1}_link;
+  [ -L $1 ] && mv -f $1 ${1}_link;
   if [ ! -d $1 ]; then
     rm -f $1;
     mkdir -p $1;
@@ -97,15 +99,15 @@ setup_mountpoint() {
 }
 is_mounted() { mount | grep -q " $1 "; }
 mount_apex() {
-  test -d /system_root/system/apex || return 1;
+  [ -d /system_root/system/apex ] || return 1;
   local apex dest loop minorx num;
   setup_mountpoint /apex;
   minorx=1;
-  test -e /dev/block/loop1 && minorx=$(ls -l /dev/block/loop1 | awk '{ print $6 }');
+  [ -e /dev/block/loop1 ] && minorx=$(ls -l /dev/block/loop1 | awk '{ print $6 }');
   num=0;
   for apex in /system_root/system/apex/*; do
     dest=/apex/$(basename $apex .apex);
-    test "$dest" == /apex/com.android.runtime.release && dest=/apex/com.android.runtime;
+    [ "$dest" == /apex/com.android.runtime.release ] && dest=/apex/com.android.runtime;
     mkdir -p $dest;
     case $apex in
       *.apex)
@@ -134,7 +136,7 @@ mount_apex() {
   export BOOTCLASSPATH=/apex/com.android.runtime/javalib/core-oj.jar:/apex/com.android.runtime/javalib/core-libart.jar:/apex/com.android.runtime/javalib/okhttp.jar:/apex/com.android.runtime/javalib/bouncycastle.jar:/apex/com.android.runtime/javalib/apache-xml.jar:/system/framework/framework.jar:/system/framework/ext.jar:/system/framework/telephony-common.jar:/system/framework/voip-common.jar:/system/framework/ims-common.jar:/system/framework/android.test.base.jar:/system/framework/telephony-ext.jar:/apex/com.android.conscrypt/javalib/conscrypt.jar:/apex/com.android.media/javalib/updatable-media.jar;
 }
 umount_apex() {
-  test -d /apex || return 1;
+  [ -d /apex ] || return 1;
   local dest loop;
   for dest in $(find /apex -type d -mindepth 1 -maxdepth 1); do
     if [ -f $dest.img ]; then
@@ -153,7 +155,9 @@ mount_all() {
   if ! is_mounted /data; then
     mount /data && UMOUNT_DATA=1;
   fi;
-  mount -o ro -t auto /vendor 2>/dev/null;
+  (mount -o ro -t auto /vendor;
+  mount -o ro -t auto /product;
+  mount -o ro -t auto /persist) 2>/dev/null;
   setup_mountpoint $ANDROID_ROOT;
   if ! is_mounted $ANDROID_ROOT; then
     mount -o ro -t auto $ANDROID_ROOT 2>/dev/null;
@@ -172,12 +176,15 @@ mount_all() {
         (umount /system;
         umount -l /system) 2>/dev/null;
         if [ -d /dev/block/mapper ]; then
-          test -e /dev/block/mapper/system || local slot=$(find_slot);
+          [ -e /dev/block/mapper/system ] || local slot=$(find_slot);
           mount -o ro -t auto /dev/block/mapper/vendor$slot /vendor;
+          mount -o ro -t auto /dev/block/mapper/product$slot /product 2>/dev/null;
           mount -o ro -t auto /dev/block/mapper/system$slot /system_root;
         else
-          test -e /dev/block/bootdevice/by-name/system || local slot=$(find_slot);
-          mount -o ro -t auto /dev/block/bootdevice/by-name/vendor$slot /vendor 2>/dev/null;
+          [ -e /dev/block/bootdevice/by-name/system ] || local slot=$(find_slot);
+          (mount -o ro -t auto /dev/block/bootdevice/by-name/vendor$slot /vendor;
+          mount -o ro -t auto /dev/block/bootdevice/by-name/product$slot /product;
+          mount -o ro -t auto /dev/block/bootdevice/by-name/persist$slot /persist) 2>/dev/null;
           mount -o ro -t auto /dev/block/bootdevice/by-name/system$slot /system_root;
         fi;
       fi;
@@ -193,6 +200,7 @@ mount_all() {
   fi;
 }
 umount_all() {
+  local mount;
   (if [ ! -d /postinstall/tmp ]; then
     umount /system;
     umount -l /system;
@@ -205,9 +213,10 @@ umount_all() {
   umount -l /mnt/system;
   umount_apex;
   umount /vendor;
-  umount -l /vendor;
-  umount /mnt/vendor;
-  umount -l /mnt/vendor;
+  for mount in /mnt/vendor /product /mnt/product /persist; do
+    umount $mount;
+    umount -l $mount;
+  done;
   if [ "$UMOUNT_DATA" ]; then
     umount /data;
     umount -l /data;
@@ -259,11 +268,11 @@ restore_env() {
   $BOOTMODE && return 1;
   local dir;
   unset -f getprop;
-  test "$OLD_LD_PATH" && export LD_LIBRARY_PATH=$OLD_LD_PATH;
-  test "$OLD_LD_PRE" && export LD_PRELOAD=$OLD_LD_PRE;
-  test "$OLD_LD_CFG" && export LD_CONFIG_FILE=$OLD_LD_CFG;
+  [ "$OLD_LD_PATH" ] && export LD_LIBRARY_PATH=$OLD_LD_PATH;
+  [ "$OLD_LD_PRE" ] && export LD_PRELOAD=$OLD_LD_PRE;
+  [ "$OLD_LD_CFG" ] && export LD_CONFIG_FILE=$OLD_LD_CFG;
   umount_all;
-  test -L /etc_link && rm -rf /etc/*;
+  [ -L /etc_link ] && rm -rf /etc/*;
   (for dir in /apex /system /system_root /etc; do
     if [ -L "${dir}_link" ]; then
       rmdir $dir;
@@ -313,11 +322,11 @@ find_arch() {
   esac;
 }
 mount_su() {
-  test ! -e $MNT && mkdir -p $MNT;
+  [ ! -e $MNT ] && mkdir -p $MNT;
   mount -t ext4 -o rw,noatime $SUIMG $MNT;
   if [ $? != 0 ]; then
     minorx=1;
-    test -e /dev/block/loop1 && minorx=$(ls -l /dev/block/loop1 | cut -d, -f2 | cut -c4);
+    [ -e /dev/block/loop1 ] && minorx=$(ls -l /dev/block/loop1 | cut -d, -f2 | cut -c4);
     i=0;
     while [ $i -lt 64 ]; do
       LOOP=/dev/block/loop$i;
@@ -367,15 +376,16 @@ find_target() {
       MNT=$POSTINSTALL/system;
       if [ ! -d /postinstall/tmp ]; then
         if [ -d /dev/block/mapper ]; then
-          for block in system vendor; do
+          for block in system vendor product; do
             for slot in "" _a _b; do
               blockdev --setrw /dev/block/mapper/$block$slot 2>/dev/null;
             done;
           done;
         fi;
         mount -o rw,remount -t auto /system || mount /system;
-        test $? != 0 && mount -o rw,remount -t auto / && SAR=1;
-        mount -o rw,remount -t auto /vendor 2>/dev/null;
+        [ $? != 0 ] && mount -o rw,remount -t auto / && SAR=1;
+        (mount -o rw,remount -t auto /vendor;
+        mount -o rw,remount -t auto /product) 2>/dev/null;
       fi;
     fi;
   fi;
@@ -407,7 +417,7 @@ do_install() {
     mkdir system;
     mv -f vendor system;
   fi;
-  test -d system && cp -rfpL system/* $TARGET;
+  [ -d system ] && cp -rfpL system/* $TARGET;
   # handle paths that aren't/can't be part of a systemless solution
   for dir in cache data vendor; do
     if [ -d $dir ]; then
@@ -418,14 +428,14 @@ do_install() {
   done;
 }
 update_magisk() {
-  test "$MAGISK" || return 1;
+  [ "$MAGISK" ] || return 1;
   cp -fp module.prop $MNT/$MODID/;
   touch $MNT/$MODID/auto_mount;
   if $BOOTMODE; then
     IMGMNT=/sbin/.core/img;
-    test -e /magisk && IMGMNT=/magisk;
-    test -e /sbin/.magisk/img && IMGMNT=/sbin/.magisk/img;
-    test -e /data/adb/modules && IMGMNT=/data/adb/modules;
+    [ -e /magisk ] && IMGMNT=/magisk;
+    [ -e /sbin/.magisk/img ] && IMGMNT=/sbin/.magisk/img;
+    [ -e /data/adb/modules ] && IMGMNT=/data/adb/modules;
     mkdir -p "$IMGMNT/$MODID";
     touch "$IMGMNT/$MODID/update";
     cp -fp module.prop "$IMGMNT/$MODID/";
@@ -483,13 +493,9 @@ abort() {
   ui_print " ";
   ui_print "Script will now exit...";
   ui_print " ";
-  test "$SUIMG" && umount $MNT;
-  test "$LOOP" && losetup -d $LOOP;
-  test "$SAR" && mount -o ro,remount -t auto /;
-  if [ "$UMOUNT_CACHE" ]; then
-    umount /cache;
-    umount -l /cache;
-  fi;
+  [ "$SUIMG" ] && umount $MNT;
+  [ "$LOOP" ] && losetup -d $LOOP;
+  [ "$SAR" ] && mount -o ro,remount -t auto /;
   restore_env;
   umask $UMASK;
   exit 1;
@@ -569,9 +575,9 @@ set_progress 1.0;
 ui_print " ";
 ui_print "Unmounting...";
 cd /;
-test "$SUIMG" && umount $MNT;
-test "$LOOP" && losetup -d $LOOP;
-test "$SAR" && mount -o ro,remount -t auto /;
+[ "$SUIMG" ] && umount $MNT;
+[ "$LOOP" ] && losetup -d $LOOP;
+[ "$SAR" ] && mount -o ro,remount -t auto /;
 restore_env;
 set_progress 1.2;
 
