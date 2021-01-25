@@ -10,6 +10,7 @@ if [ -z $OUTFD ]; then
 else
   OUTFD=/proc/self/fd/$OUTFD;
 fi;
+[ -z $TMPDIR ] && TMPDIR=/dev/tmp;
 [ ! -z $ZIP ] && { ZIPFILE="$ZIP"; unset ZIP; }
 [ -z $ZIPFILE ] && ZIPFILE="$3";
 DIR=$(dirname "$ZIPFILE");
@@ -140,7 +141,7 @@ umount_apex() {
   local dest loop;
   for dest in $(find /apex -type d -mindepth 1 -maxdepth 1); do
     if [ -f $dest.img ]; then
-      loop=$(mount | grep $dest | cut -d" " -f1);
+      loop=$(mount | grep $dest | cut -d\  -f1);
     fi;
     (umount -l $dest;
     losetup -d $loop) 2>/dev/null;
@@ -353,7 +354,7 @@ find_target() {
   fi;
   # SuperSU su.img and Magisk magisk.img/magisk_merge.img module support
   if [ "$SUIMG" ]; then
-    MNT=/dev/tmp/$(basename $SUIMG .img);
+    MNT=$TMPDIR/$(basename $SUIMG .img);
     umount $MNT;
     mount_su;
     case $MNT in
@@ -504,6 +505,10 @@ abort() {
 UMASK=$(umask);
 umask 022;
 
+# ensure zip installer shell is in a working scratch directory
+mkdir -p $TMPDIR;
+cd $TMPDIR;
+
 # source custom installer functions and configuration
 unzip -o "$ZIPFILE" diffusion_config.sh module.prop;
 MODID=$(file_getprop module.prop id);
@@ -527,8 +532,8 @@ set_progress 0.2;
 
 ui_print " ";
 ui_print "Extracting files...";
-mkdir -p /dev/tmp/$MODID;
-cd /dev/tmp/$MODID;
+mkdir -p $TMPDIR/$MODID;
+cd $TMPDIR/$MODID;
 unzip -o "$ZIPFILE";
 set_perm_recursive 0 0 755 644 .;
 set_progress 0.3;
@@ -581,7 +586,7 @@ cd /;
 restore_env;
 set_progress 1.2;
 
-rm -rf /dev/tmp;
+rm -rf $TMPDIR;
 umask $UMASK;
 ui_print " ";
 ui_print "Done!";
