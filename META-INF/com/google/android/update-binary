@@ -13,7 +13,5 @@ cd $TMPDIR;
 
 unzip -o "$3" customize.sh;
 
-chmod 755 $TMPDIR/customize.sh;
-
 . $TMPDIR/customize.sh;
 
