@@ -46,6 +46,7 @@ if $BOOTMODE; then
     [ -e /magisk/.core/busybox ] && MAGISKBB=/magisk/.core/busybox;
     [ -e /sbin/.core/busybox ] && MAGISKBB=/sbin/.core/busybox;
     [ -e /sbin/.magisk/busybox ] && MAGISKBB=/sbin/.magisk/busybox;
+    [ -e /dev/*/.magisk/busybox ] && MAGISKBB=$(echo /dev/*/.magisk/busybox);
     [ "$MAGISKBB" ] && export PATH="$MAGISKBB:$PATH";
   fi;
 fi;
@@ -210,11 +211,8 @@ umount_all() {
       umount -l /system_root;
     fi;
   fi;
-  umount /mnt/system;
-  umount -l /mnt/system;
   umount_apex;
-  umount /vendor;
-  for mount in /mnt/vendor /product /mnt/product /persist; do
+  for mount in /mnt/system /vendor /mnt/vendor /product /mnt/product /persist; do
     umount $mount;
     umount -l $mount;
   done;
