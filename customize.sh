@@ -102,14 +102,17 @@ setup_mountpoint() {
 is_mounted() { mount | grep -q " $1 "; }
 mount_apex() {
   [ -d /system_root/system/apex ] || return 1;
-  local apex dest loop minorx num;
+  local apex dest loop minorx num var;
   setup_mountpoint /apex;
   minorx=1;
   [ -e /dev/block/loop1 ] && minorx=$(ls -l /dev/block/loop1 | awk '{ print $6 }');
   num=0;
   for apex in /system_root/system/apex/*; do
     dest=/apex/$(basename $apex .apex);
-    [ "$dest" == /apex/com.android.runtime.release ] && dest=/apex/com.android.runtime;
+    case $dest in
+      *.current) dest=/apex/$(basename $dest .current);;
+      *.release) dest=/apex/$(basename $dest .release);;
+    esac;
     mkdir -p $dest;
     case $apex in
       *.apex)
@@ -133,13 +136,22 @@ mount_apex() {
       *) mount -o bind $apex $dest;;
     esac;
   done;
-  export ANDROID_RUNTIME_ROOT=/apex/com.android.runtime;
-  export ANDROID_TZDATA_ROOT=/apex/com.android.tzdata;
-  export BOOTCLASSPATH=/apex/com.android.runtime/javalib/core-oj.jar:/apex/com.android.runtime/javalib/core-libart.jar:/apex/com.android.runtime/javalib/okhttp.jar:/apex/com.android.runtime/javalib/bouncycastle.jar:/apex/com.android.runtime/javalib/apache-xml.jar:/system/framework/framework.jar:/system/framework/ext.jar:/system/framework/telephony-common.jar:/system/framework/voip-common.jar:/system/framework/ims-common.jar:/system/framework/android.test.base.jar:/system/framework/telephony-ext.jar:/apex/com.android.conscrypt/javalib/conscrypt.jar:/apex/com.android.media/javalib/updatable-media.jar;
+  for var in $(grep -o 'export .* /.*' /system_root/init.environ.rc | awk '{ print $2 }'); do
+    eval OLD_${var}=\$$var;
+  done;
+  $(grep -o 'export .* /.*' /system_root/init.environ.rc | sed 's; /;=/;'); unset export;
 }
 umount_apex() {
-  [ -d /apex ] || return 1;
-  local dest loop;
+  [ -d /apex/com.android.runtime ] || return 1;
+  local dest loop var;
+  for var in $(grep -o 'export .* /.*' /system_root/init.environ.rc | awk '{ print $2 }'); do
+    if [ "$(eval echo \$OLD_$var)" ]; then
+      eval $var=\$OLD_${var};
+    else
+      eval unset $var;
+    fi;
+    unset OLD_${var};
+  done;
   for dest in $(find /apex -type d -mindepth 1 -maxdepth 1); do
     if [ -f $dest.img ]; then
       loop=$(mount | grep $dest | cut -d\  -f1);
@@ -148,7 +160,6 @@ umount_apex() {
     losetup -d $loop) 2>/dev/null;
   done;
   rm -rf /apex 2>/dev/null;
-  unset ANDROID_RUNTIME_ROOT ANDROID_TZDATA_ROOT BOOTCLASSPATH;
 }
 mount_all() {
   if ! is_mounted /cache; then
@@ -206,12 +217,12 @@ umount_all() {
   (if [ ! -d /postinstall/tmp ]; then
     umount /system;
     umount -l /system;
-    if [ -e /system_root ]; then
-      umount /system_root;
-      umount -l /system_root;
-    fi;
-  fi;
+  fi) 2>/dev/null;
   umount_apex;
+  (if [ ! -d /postinstall/tmp ]; then
+    umount /system_root;
+    umount -l /system_root;
+  fi;
   for mount in /mnt/system /vendor /mnt/vendor /product /mnt/product /persist; do
     umount $mount;
     umount -l $mount;
@@ -270,6 +281,7 @@ restore_env() {
   [ "$OLD_LD_PATH" ] && export LD_LIBRARY_PATH=$OLD_LD_PATH;
   [ "$OLD_LD_PRE" ] && export LD_PRELOAD=$OLD_LD_PRE;
   [ "$OLD_LD_CFG" ] && export LD_CONFIG_FILE=$OLD_LD_CFG;
+  unset OLD_LD_PATH OLD_LD_PRE OLD_LD_CFG;
   umount_all;
   [ -L /etc_link ] && rm -rf /etc/*;
   (for dir in /apex /system /system_root /etc; do
