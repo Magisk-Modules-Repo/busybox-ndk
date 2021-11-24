@@ -46,8 +46,8 @@ custom_postinstall() {
     for applet in $($XBIN/busybox --list); do
       case $XBIN in
         */bin)
-          if [ "$(echo "$sysbin" | $XBIN/busybox grep "^$applet$")" ]; then
-            if $BOOTMODE && [ "$(echo "$existbin" | $XBIN/busybox grep "^$applet$")" ]; then
+          if [ "$(echo "$sysbin" | $XBIN/busybox grep -xF "$applet")" ]; then
+            if $BOOTMODE && [ "$(echo "$existbin" | $XBIN/busybox grep -xF "$applet")" ]; then
               $XBIN/busybox ln -sf busybox $applet;
             fi;
           else
