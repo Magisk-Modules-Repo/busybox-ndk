@@ -22,6 +22,7 @@ if readlink /proc/$$/fd/$2 2>/dev/null | grep -q /tmp; then
   # rerouted to log file, so suppress recovery ui commands
   OUTFD=/proc/self/fd/0;
   # try to find the actual fd (pipe with parent updater likely started as 'update-binary 3 fd zipfile')
+  # shellcheck disable=SC2045
   for FD in $(ls /proc/$$/fd); do
     if readlink /proc/$$/fd/$FD 2>/dev/null | grep -q pipe; then
       if ps | grep " 3 $FD " | grep -v grep >/dev/null; then
@@ -46,20 +47,20 @@ if $BOOTMODE; then
     [ -e /magisk/.core/busybox ] && MAGISKBB=/magisk/.core/busybox;
     [ -e /sbin/.core/busybox ] && MAGISKBB=/sbin/.core/busybox;
     [ -e /sbin/.magisk/busybox ] && MAGISKBB=/sbin/.magisk/busybox;
-    [ -e /dev/*/.magisk/busybox ] && MAGISKBB=$(echo /dev/*/.magisk/busybox);
+    # shellcheck disable=SC2144
+    [ -a /dev/*/.magisk/busybox ] && MAGISKBB=$(echo /dev/*/.magisk/busybox);
     [ "$MAGISKBB" ] && export PATH="$MAGISKBB:$PATH";
   fi;
 fi;
 
-# postinstall addon.d-v2 awareness
-[ -d /postinstall/tmp ] && POSTINSTALL=/postinstall;
-
-ui_print() {
+# postinstall addon.d-v2 awarenesui_print() {
   if $BOOTMODE; then
     echo "$1";
   else
     echo -e "ui_print $1\nui_print" >> $OUTFD;
   fi;
+shellcheck disable=SC1123
+shellcheck disable=SC1089
 }
 show_progress() { echo "progress $1 $2" >> $OUTFD; }
 set_progress() { echo "set_progress $1" >> $OUTFD; }

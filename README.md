@@ -1,3 +1,4 @@
+ read the [release post](https://forum.xda-developers.com/showpost.php?p=64228091&postcount=420) for further information about applet inclusion, zip renaming and special features.
 # Busybox for Android NDK
 ### osm0sis @ xda-developers
 *Static busybox binary for all Android architectures built with the NDK*
@@ -15,4 +16,4 @@ The installer detects what architecture (ARM/ARM64, x86/x86_64, MIPS/MIPS64) you
 
 My busybox configs and patches are available here: [android-busybox-ndk](https://github.com/osm0sis/android-busybox-ndk)
 
-Please read the [release post](https://forum.xda-developers.com/showpost.php?p=64228091&postcount=420) for further information about applet inclusion, zip renaming and special features.
+Please
