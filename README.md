@@ -1,18 +1,18 @@
-# Busybox for Android NDK
+## Busybox for Android NDK
 ### osm0sis @ xda-developers
 *Static busybox binary for all Android architectures built with the NDK*
 
 ### Links
 * [GitHub](https://github.com/Magisk-Modules-Repo/Busybox-Installer)
-* [Support](https://forum.xda-developers.com/showthread.php?t=2239421)
+* [Support](https://bit.do/osm0)
 * [Sponsor](https://github.com/sponsors/osm0sis)
 * [Donate](https://www.paypal.me/osm0sis)
 
 ### Description
-As a byproduct of building my own static busybox compiles in all supported Android architectures for my [AIK-mobile](https://forum.xda-developers.com/showthread.php?t=2073775) package I figured I might as well offer them up separately as well since there weren't any providers making Android x64 builds when I was researching.
+A byproduct of building my own busybox for my [AIK-mobile](https://bit.do/AIK_) package, I figured I might as well offer them separately since there weren't any providers making Android x64 builds.
 
-The installer detects what architecture (ARM/ARM64, x86/x86_64, MIPS/MIPS64) your device uses and installs the correct busybox binary accordingly. It then cleans up any symlinks from a possible previous installation in the same directory and generates new symlinks directly from the output of the installed binary. Using the zip name (also reading from /data/.busybox-ndk) to allow user choice, "nolinks" may be specified to opt out of symlink creation, and "noselinux" may be specified to force non-SELinux builds. Detects and supports "systemless" root via SuperSU/Magisk installation as well.
+Detects device (ARM/64, x86/_64, MIPS/64) to install the busybox binary, cleans up symlinks from any previous install and generates new ones. Detects and supports SuperSU/Magisk systemless installs.
 
-My busybox configs and patches are available here: [android-busybox-ndk](https://github.com/osm0sis/android-busybox-ndk)
+My build configs/patches are available here: [android-busybox-ndk](https://github.com/osm0sis/android-busybox-ndk)
 
-Please read the [release post](https://forum.xda-developers.com/showpost.php?p=64228091&postcount=420) for further information about applet inclusion, zip renaming and special features.
+Please read the [release post](https://bit.do/BBNDK) for more info about applet inclusion, zip renaming options and special features.

@@ -1,9 +1,10 @@
 id=busybox-ndk
 name=Busybox for Android NDK
 version=1.34.1
-versionCode=13411
+versionCode=13412
 author=osm0sis @ xda-developers
 description=Static busybox binary for all Android architectures built with the NDK
-support=https://forum.xda-developers.com/showthread.php?t=2239421
+updateJson=https://raw.githubusercontent.com/Magisk-Modules-Repo/busybox-ndk/master/update.json
+support=https://forum.xda-developers.com/t/tools-zips-scripts-osm0sis-odds-and-ends-multiple-devices-platforms.2239421
 donate=https://www.paypal.me/osm0sis
 template=1500
