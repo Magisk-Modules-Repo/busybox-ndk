@@ -1,7 +1,7 @@
 # Diffusion Installer Core (DO NOT CHANGE)
 # osm0sis @ xda-developers
 
-# keep Magisk's forced module installer backend involvement minimal (must end without ;)
+# keep Magisk's forced module installer backend involvement minimal (must end without ";")
 SKIPUNZIP=1
 
 # make sure variables are correct regardless of Magisk or recovery sourcing the script
@@ -63,7 +63,7 @@ ui_print() {
 }
 show_progress() { echo "progress $1 $2" >> $OUTFD; }
 set_progress() { echo "set_progress $1" >> $OUTFD; }
-file_getprop() { grep "^$2" "$1" | head -n1 | cut -d= -f2-; }
+file_getprop() { grep "^$2=" "$1" | tail -n1 | cut -d= -f2-; }
 set_perm() {
   local uid gid mod;
   uid=$1; gid=$2; mod=$3;
@@ -104,26 +104,26 @@ mount_apex() {
   [ -d /system_root/system/apex ] || return 1;
   local apex dest loop minorx num var;
   setup_mountpoint /apex;
+  mount -t tmpfs tmpfs /apex -o mode=755 && touch /apex/apextmp;
   minorx=1;
   [ -e /dev/block/loop1 ] && minorx=$(ls -l /dev/block/loop1 | awk '{ print $6 }');
   num=0;
   for apex in /system_root/system/apex/*; do
-    dest=/apex/$(basename $apex .apex);
-    case $dest in
-      *.current) dest=/apex/$(basename $dest .current);;
-      *.release) dest=/apex/$(basename $dest .release);;
-    esac;
+    dest=/apex/$(basename $apex | sed -E -e 's;\.apex$|\.capex$;;' -e 's;\.current$|\.release$;;');
     mkdir -p $dest;
     case $apex in
-      *.apex)
+      *.apex|*.capex)
+        unzip -qo $apex original_apex -d /apex;
+        [ -f /apex/original_apex ] && apex=/apex/original_apex;
         unzip -qo $apex apex_payload.img -d /apex;
+        mv -f /apex/original_apex $dest.apex 2>/dev/null;
         mv -f /apex/apex_payload.img $dest.img;
         mount -t ext4 -o ro,noatime $dest.img $dest 2>/dev/null;
         if [ $? != 0 ]; then
           while [ $num -lt 64 ]; do
             loop=/dev/block/loop$num;
-            (mknod $loop b 7 $((num * minorx));
-            losetup $loop $dest.img) 2>/dev/null;
+            [ -e $loop ] || mknod $loop b 7 $((num * minorx));
+            losetup $loop $dest.img 2>/dev/null;
             num=$((num + 1));
             losetup $loop | grep -q $dest.img && break;
           done;
@@ -142,9 +142,9 @@ mount_apex() {
   $(grep -o 'export .* /.*' /system_root/init.environ.rc | sed 's; /;=/;'); unset export;
 }
 umount_apex() {
-  [ -d /apex/com.android.runtime ] || return 1;
+  [ -d /apex ] || return 1;
   local dest loop var;
-  for var in $(grep -o 'export .* /.*' /system_root/init.environ.rc | awk '{ print $2 }'); do
+  for var in $(grep -o 'export .* /.*' /system_root/init.environ.rc 2>/dev/null | awk '{ print $2 }'); do
     if [ "$(eval echo \$OLD_$var)" ]; then
       eval $var=\$OLD_${var};
     else
@@ -153,28 +153,32 @@ umount_apex() {
     unset OLD_${var};
   done;
   for dest in $(find /apex -type d -mindepth 1 -maxdepth 1); do
-    if [ -f $dest.img ]; then
-      loop=$(mount | grep $dest | cut -d\  -f1);
-    fi;
-    (umount -l $dest;
-    losetup -d $loop) 2>/dev/null;
+    loop=$(mount | grep $dest | grep loop | cut -d\  -f1);
+    umount -l $dest;
+    [ "$loop" ] && losetup -d $loop;
   done;
+  [ -f /apex/apextmp ] && umount /apex;
   rm -rf /apex 2>/dev/null;
 }
 mount_all() {
+  local byname mount slot system;
   if ! is_mounted /cache; then
     mount /cache 2>/dev/null && UMOUNT_CACHE=1;
   fi;
   if ! is_mounted /data; then
     mount /data && UMOUNT_DATA=1;
   fi;
-  (mount -o ro -t auto /vendor;
-  mount -o ro -t auto /product;
-  mount -o ro -t auto /persist) 2>/dev/null;
+  (for mount in /vendor /product /system_ext /persist; do
+    mount -o ro -t auto $mount;
+  done) 2>/dev/null;
   setup_mountpoint $ANDROID_ROOT;
   if ! is_mounted $ANDROID_ROOT; then
     mount -o ro -t auto $ANDROID_ROOT 2>/dev/null;
   fi;
+  byname=bootdevice/by-name;
+  [ -d /dev/block/$byname ] || byname=$(find /dev/block/platform -type d -name by-name 2>/dev/null | head -n1 | cut -d/ -f4-);
+  [ -d /dev/block/mapper ] && byname=mapper;
+  [ -e /dev/block/$byname/system ] || slot=$(find_slot);
   case $ANDROID_ROOT in
     /system_root) setup_mountpoint /system;;
     /system)
@@ -188,28 +192,24 @@ mount_all() {
       if [ $? != 0 ]; then
         (umount /system;
         umount -l /system) 2>/dev/null;
-        if [ -d /dev/block/mapper ]; then
-          [ -e /dev/block/mapper/system ] || local slot=$(find_slot);
-          mount -o ro -t auto /dev/block/mapper/vendor$slot /vendor;
-          mount -o ro -t auto /dev/block/mapper/product$slot /product 2>/dev/null;
-          mount -o ro -t auto /dev/block/mapper/system$slot /system_root;
-        else
-          [ -e /dev/block/bootdevice/by-name/system ] || local slot=$(find_slot);
-          (mount -o ro -t auto /dev/block/bootdevice/by-name/vendor$slot /vendor;
-          mount -o ro -t auto /dev/block/bootdevice/by-name/product$slot /product;
-          mount -o ro -t auto /dev/block/bootdevice/by-name/persist$slot /persist) 2>/dev/null;
-          mount -o ro -t auto /dev/block/bootdevice/by-name/system$slot /system_root;
-        fi;
+        mount -o ro -t auto /dev/block/$byname/system$slot /system_root;
       fi;
     ;;
   esac;
+  [ -f /system_root/system/build.prop ] && system=/system;
+  for mount in /vendor /product /system_ext; do
+    if ! is_mounted $mount && [ -L /system$mount -o -L /system_root$system$mount ]; then
+      setup_mountpoint $mount;
+      mount -o ro -t auto /dev/block/$byname$mount$slot $mount;
+    fi;
+  done;
   if is_mounted /system_root; then
     mount_apex;
-    if [ -f /system_root/build.prop ]; then
-      mount -o bind /system_root /system;
-    else
-      mount -o bind /system_root/system /system;
-    fi;
+    mount -o bind /system_root$system /system;
+  fi;
+  if ! is_mounted /persist && [ -e /dev/block/bootdevice/by-name/persist ]; then
+    setup_mountpoint /persist;
+    mount -o ro -t auto /dev/block/bootdevice/by-name/persist /persist;
   fi;
 }
 umount_all() {
@@ -223,7 +223,7 @@ umount_all() {
     umount /system_root;
     umount -l /system_root;
   fi;
-  for mount in /mnt/system /vendor /mnt/vendor /product /mnt/product /persist; do
+  for mount in /mnt/system /vendor /mnt/vendor /product /mnt/product /system_ext /mnt/system_ext /persist; do
     umount $mount;
     umount -l $mount;
   done;
@@ -253,7 +253,7 @@ setup_env() {
   if [ ! "$(getprop 2>/dev/null)" ]; then
     getprop() {
       local propdir propfile propval;
-      for propdir in / /system_root /system /vendor /odm /product; do
+      for propdir in / /system_root /system /vendor /product /system_ext /odm; do
         for propfile in default.prop build.prop; do
           if [ "$propval" ]; then
             break 2;
@@ -284,7 +284,7 @@ restore_env() {
   unset OLD_LD_PATH OLD_LD_PRE OLD_LD_CFG;
   umount_all;
   [ -L /etc_link ] && rm -rf /etc/*;
-  (for dir in /apex /system /system_root /etc; do
+  (for dir in /etc /apex /system_root /system /vendor /product /system_ext /persist; do
     if [ -L "${dir}_link" ]; then
       rmdir $dir;
       mv -f ${dir}_link $dir;
@@ -402,6 +402,7 @@ find_target() {
   fi;
   # set target paths
   TARGET=$MNT$MAGISK;
+  custom_target; # allow modifying $TARGET before $ETC, $BIN and $XBIN get set
   ETC=$TARGET/etc;
   BIN=$TARGET/bin;
   if [ -d "$TARGET/xbin" -o "$MAGISK" -a -d /system/xbin ]; then
@@ -552,8 +553,7 @@ if [ "$ACTION" == installation ]; then
   ui_print " ";
   ui_print "Installing...";
   find_arch;
-  find_target;
-  custom_target;
+  find_target; # and custom_target
 
   do_install;
   custom_install;
@@ -571,8 +571,7 @@ if [ "$ACTION" == installation ]; then
 else
   ui_print " ";
   ui_print "Uninstalling...";
-  find_target;
-  custom_target;
+  find_target; # and custom_target
 
   do_uninstall;
   custom_uninstall;
