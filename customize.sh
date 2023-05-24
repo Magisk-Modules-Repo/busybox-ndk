@@ -32,7 +32,7 @@ if readlink /proc/$$/fd/$2 2>/dev/null | grep -q /tmp; then
   done;
 fi;
 
-# Magisk Manager/booted flashing support
+# Magisk app/booted flashing support
 [ -e /data/adb/magisk ] && ADB=adb;
 BOOTMODE=false;
 ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
@@ -47,6 +47,7 @@ if $BOOTMODE; then
     [ -e /sbin/.core/busybox ] && MAGISKBB=/sbin/.core/busybox;
     [ -e /sbin/.magisk/busybox ] && MAGISKBB=/sbin/.magisk/busybox;
     [ -e /dev/*/.magisk/busybox ] && MAGISKBB=$(echo /dev/*/.magisk/busybox);
+    [ -e /debug_ramdisk/.magisk/busybox ] && MAGISKBB=/debug_ramdisk/.magisk/busybox;
     [ "$MAGISKBB" ] && export PATH="$MAGISKBB:$PATH";
   fi;
 fi;
@@ -90,6 +91,7 @@ find_slot() {
     [ "$slot" ] || slot=$(grep -o 'androidboot.slot=.*$' /proc/cmdline | cut -d\  -f1 | cut -d= -f2);
     [ "$slot" ] && slot=_$slot;
   fi;
+  [ "$slot" == "normal" ] && unset slot;
   [ "$slot" ] && echo "$slot";
 }
 setup_mountpoint() {
@@ -118,7 +120,7 @@ mount_apex() {
         unzip -qo $apex apex_payload.img -d /apex;
         mv -f /apex/original_apex $dest.apex 2>/dev/null;
         mv -f /apex/apex_payload.img $dest.img;
-        mount -t ext4 -o ro,noatime $dest.img $dest 2>/dev/null;
+        mount -t ext4 -o ro,noatime $dest.img $dest 2>/dev/null && echo "$dest (direct)" >&2;
         if [ $? != 0 ]; then
           while [ $num -lt 64 ]; do
             loop=/dev/block/loop$num;
@@ -127,22 +129,24 @@ mount_apex() {
             num=$((num + 1));
             losetup $loop | grep -q $dest.img && break;
           done;
-          mount -t ext4 -o ro,loop,noatime $loop $dest;
+          mount -t ext4 -o ro,loop,noatime $loop $dest && echo "$dest (loop)" >&2;
           if [ $? != 0 ]; then
             losetup -d $loop 2>/dev/null;
           fi;
         fi;
       ;;
-      *) mount -o bind $apex $dest;;
+      *) mount -o bind $apex $dest && echo "$dest (bind)" >&2;;
     esac;
   done;
   for var in $(grep -o 'export .* /.*' /system_root/init.environ.rc | awk '{ print $2 }'); do
     eval OLD_${var}=\$$var;
   done;
   $(grep -o 'export .* /.*' /system_root/init.environ.rc | sed 's; /;=/;'); unset export;
+  touch /apex/apexdfn;
 }
 umount_apex() {
-  [ -d /apex ] || return 1;
+  [ -f /apex/apexdfn ] || return 1;
+  echo "Unmounting apex..." >&2;
   local dest loop var;
   for var in $(grep -o 'export .* /.*' /system_root/init.environ.rc 2>/dev/null | awk '{ print $2 }'); do
     if [ "$(eval echo \$OLD_$var)" ]; then
@@ -155,65 +159,65 @@ umount_apex() {
   for dest in $(find /apex -type d -mindepth 1 -maxdepth 1); do
     loop=$(mount | grep $dest | grep loop | cut -d\  -f1);
     umount -l $dest;
-    [ "$loop" ] && losetup -d $loop;
+    losetup $loop >/dev/null 2>&1 && losetup -d $loop;
   done;
   [ -f /apex/apextmp ] && umount /apex;
-  rm -rf /apex 2>/dev/null;
+  rm -rf /apex/apexdfn /apex 2>/dev/null;
 }
 mount_all() {
   local byname mount slot system;
-  if ! is_mounted /cache; then
-    mount /cache 2>/dev/null && UMOUNT_CACHE=1;
-  fi;
-  if ! is_mounted /data; then
-    mount /data && UMOUNT_DATA=1;
-  fi;
-  (for mount in /vendor /product /system_ext /persist; do
-    mount -o ro -t auto $mount;
-  done) 2>/dev/null;
-  setup_mountpoint $ANDROID_ROOT;
-  if ! is_mounted $ANDROID_ROOT; then
-    mount -o ro -t auto $ANDROID_ROOT 2>/dev/null;
-  fi;
+  echo "Mounting..." >&2;
   byname=bootdevice/by-name;
   [ -d /dev/block/$byname ] || byname=$(find /dev/block/platform -type d -name by-name 2>/dev/null | head -n1 | cut -d/ -f4-);
-  [ -d /dev/block/mapper ] && byname=mapper;
+  [ -e /dev/block/$byname/super -a -d /dev/block/mapper ] && byname=mapper;
   [ -e /dev/block/$byname/system ] || slot=$(find_slot);
+  for mount in /cache /data /metadata /persist; do
+    if ! is_mounted $mount; then
+      mount $mount 2>/dev/null && echo "$mount (fstab)" >&2 && UMOUNTLIST="$UMOUNTLIST $mount";
+      if [ $? != 0 -a -e /dev/block/$byname$mount ]; then
+        setup_mountpoint $mount;
+        mount -o ro -t auto /dev/block/$byname$mount $mount && echo "$mount (direct)" >&2 && UMOUNTLIST="$UMOUNTLIST $mount";
+      fi;
+    fi;
+  done;
+  setup_mountpoint $ANDROID_ROOT;
+  if ! is_mounted $ANDROID_ROOT; then
+    mount -o ro -t auto $ANDROID_ROOT 2>/dev/null && echo "$ANDROID_ROOT (\$ANDROID_ROOT)" >&2;
+  fi;
   case $ANDROID_ROOT in
     /system_root) setup_mountpoint /system;;
     /system)
       if ! is_mounted /system && ! is_mounted /system_root; then
         setup_mountpoint /system_root;
-        mount -o ro -t auto /system_root;
+        mount -o ro -t auto /system_root && echo "/system_root (fstab)" >&2;
       elif [ -f /system/system/build.prop ]; then
         setup_mountpoint /system_root;
-        mount --move /system /system_root;
+        mount --move /system /system_root && echo "/system_root (moved)" >&2;
       fi;
       if [ $? != 0 ]; then
         (umount /system;
         umount -l /system) 2>/dev/null;
-        mount -o ro -t auto /dev/block/$byname/system$slot /system_root;
+        mount -o ro -t auto /dev/block/$byname/system$slot /system_root && echo "/system_root (direct)" >&2;
       fi;
     ;;
   esac;
   [ -f /system_root/system/build.prop ] && system=/system;
   for mount in /vendor /product /system_ext; do
-    if ! is_mounted $mount && [ -L /system$mount -o -L /system_root$system$mount ]; then
+    mount -o ro -t auto $mount 2>/dev/null && echo "$mount (fstab)" >&2;
+    if [ $? != 0 ] && [ -L /system$mount -o -L /system_root$system$mount ]; then
       setup_mountpoint $mount;
-      mount -o ro -t auto /dev/block/$byname$mount$slot $mount;
+      mount -o ro -t auto /dev/block/$byname$mount$slot $mount && echo "$mount (direct)" >&2;
     fi;
   done;
   if is_mounted /system_root; then
     mount_apex;
-    mount -o bind /system_root$system /system;
+    mount -o bind /system_root$system /system && echo "/system (bind)" >&2;
   fi;
-  if ! is_mounted /persist && [ -e /dev/block/bootdevice/by-name/persist ]; then
-    setup_mountpoint /persist;
-    mount -o ro -t auto /dev/block/bootdevice/by-name/persist /persist;
-  fi;
+  echo " " >&2;
 }
 umount_all() {
   local mount;
+  echo "Unmounting..." >&2;
   (if [ ! -d /postinstall/tmp ]; then
     umount /system;
     umount -l /system;
@@ -223,18 +227,10 @@ umount_all() {
     umount /system_root;
     umount -l /system_root;
   fi;
-  for mount in /mnt/system /vendor /mnt/vendor /product /mnt/product /system_ext /mnt/system_ext /persist; do
+  for mount in /mnt/system /vendor /mnt/vendor /product /mnt/product /system_ext /mnt/system_ext $UMOUNTLIST; do
     umount $mount;
     umount -l $mount;
-  done;
-  if [ "$UMOUNT_DATA" ]; then
-    umount /data;
-    umount -l /data;
-  fi;
-  if [ "$UMOUNT_CACHE" ]; then
-    umount /cache;
-    umount -l /cache;
-  fi) 2>/dev/null;
+  done) 2>/dev/null;
 }
 setup_env() {
   $BOOTMODE && return 1;
@@ -253,7 +249,7 @@ setup_env() {
   if [ ! "$(getprop 2>/dev/null)" ]; then
     getprop() {
       local propdir propfile propval;
-      for propdir in / /system_root /system /vendor /product /system_ext /odm; do
+      for propdir in / /system_root /system /vendor /product /product/etc /system_ext/etc /odm/etc; do
         for propfile in default.prop build.prop; do
           if [ "$propval" ]; then
             break 2;
@@ -262,11 +258,7 @@ setup_env() {
           fi;
         done;
       done;
-      if [ "$propval" ]; then
-        echo "$propval";
-      else
-        echo "";
-      fi;
+      echo "$propval";
     }
   elif [ ! "$(getprop ro.build.type 2>/dev/null)" ]; then
     getprop() {
@@ -282,9 +274,10 @@ restore_env() {
   [ "$OLD_LD_PRE" ] && export LD_PRELOAD=$OLD_LD_PRE;
   [ "$OLD_LD_CFG" ] && export LD_CONFIG_FILE=$OLD_LD_CFG;
   unset OLD_LD_PATH OLD_LD_PRE OLD_LD_CFG;
+  sleep 1;
   umount_all;
   [ -L /etc_link ] && rm -rf /etc/*;
-  (for dir in /etc /apex /system_root /system /vendor /product /system_ext /persist; do
+  (for dir in /etc /apex /system_root /system /vendor /product /system_ext /metadata /persist; do
     if [ -L "${dir}_link" ]; then
       rmdir $dir;
       mv -f ${dir}_link $dir;
@@ -387,7 +380,7 @@ find_target() {
       MNT=$POSTINSTALL/system;
       if [ ! -d /postinstall/tmp ]; then
         if [ -d /dev/block/mapper ]; then
-          for block in system vendor product; do
+          for block in system vendor product system_ext; do
             for slot in "" _a _b; do
               blockdev --setrw /dev/block/mapper/$block$slot 2>/dev/null;
             done;
@@ -396,7 +389,8 @@ find_target() {
         mount -o rw,remount -t auto /system || mount /system;
         [ $? != 0 ] && mount -o rw,remount -t auto / && SAR=1;
         (mount -o rw,remount -t auto /vendor;
-        mount -o rw,remount -t auto /product) 2>/dev/null;
+        mount -o rw,remount -t auto /product;
+        mount -o rw,remount -t auto /system_ext) 2>/dev/null;
       fi;
     fi;
   fi;
@@ -412,7 +406,7 @@ find_target() {
   fi;
 }
 do_install() {
-  local dir targetvar;
+  local dir mount targetvar;
   mkdir -p $TARGET;
   # handle $BIN $XBIN and $ETC
   for dir in bin xbin etc; do
@@ -425,13 +419,15 @@ do_install() {
     fi;
   done;
   # handle system $TARGET
-  if [ "$MAGISK" -a -d vendor ]; then
-    mkdir system;
-    mv -f vendor system;
-  fi;
+  for mount in vendor product system_ext; do
+    if [ "$MAGISK" -a -d $mount ]; then
+      mkdir system 2>/dev/null;
+      mv -f $mount system;
+    fi;
+  done;
   [ -d system ] && cp -rfpL system/* $TARGET;
   # handle paths that aren't/can't be part of a systemless solution
-  for dir in cache data vendor; do
+  for dir in cache data metadata persist vendor product system_ext; do
     if [ -d $dir ]; then
       cd $dir;
       cp -rfpL * /$dir;
@@ -469,10 +465,12 @@ do_uninstall() {
       cd ..;
     fi;
   done;
-  if [ "$MAGISK" -a -d vendor ]; then
-    mkdir system;
-    mv -f vendor system;
-  fi;
+  for mount in vendor product system_ext; do
+    if [ "$MAGISK" -a -d $mount ]; then
+      mkdir system 2>/dev/null;
+      mv -f $mount system;
+    fi;
+  done;
   # handle system $TARGET
   if [ -d system ]; then
     cd system;
@@ -485,7 +483,7 @@ do_uninstall() {
     cd ..;
   fi;
   # handle paths that aren't/can't be part of a systemless solution
-  for dir in cache data vendor; do
+  for dir in cache data metadata persist vendor product system_ext; do
     if [ -d $dir ]; then
       cd $dir;
       for rmfile in $(find . -type f); do

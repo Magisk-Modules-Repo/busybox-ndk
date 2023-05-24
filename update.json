@@ -1,6 +1,6 @@
 {
-    "version": "1.34.1",
-    "versionCode": "13413",
-    "zipUrl": "https://forum.xda-developers.com/attachments/update-busybox-installer-v1-34-1-all-signed-zip.5760591/",
+    "version": "1.36.1",
+    "versionCode": "13610",
+    "zipUrl": "https://forum.xda-developers.com/attachments/update-busybox-installer-v1-36-1-all-signed-zip.5918305/",
     "changelog": "https://raw.githubusercontent.com/Magisk-Modules-Repo/busybox-ndk/master/README.md"
 }
