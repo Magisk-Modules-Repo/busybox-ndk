@@ -104,9 +104,11 @@ setup_mountpoint() {
 is_mounted() { mount | grep -q " $1 "; }
 mount_apex() {
   [ -d /system_root/system/apex ] || return 1;
-  local apex dest loop minorx num var;
+  local apex dest loop minorx num shcon var;
   setup_mountpoint /apex;
   mount -t tmpfs tmpfs /apex -o mode=755 && touch /apex/apextmp;
+  shcon=$(cat /proc/self/attr/current);
+  echo "u:r:su:s0" > /proc/self/attr/current; # work around LOS Recovery not allowing loop mounts in recovery context
   minorx=1;
   [ -e /dev/block/loop1 ] && minorx=$(ls -l /dev/block/loop1 | awk '{ print $6 }');
   num=0;
@@ -132,12 +134,17 @@ mount_apex() {
           mount -t ext4 -o ro,loop,noatime $loop $dest && echo "$dest (loop)" >&2;
           if [ $? != 0 ]; then
             losetup -d $loop 2>/dev/null;
+            if [ $num -eq 64 -a $(losetup -f) == "/dev/block/loop0" ]; then
+              echo "Aborting apex mounts due to broken environment..." >&2;
+              break;
+            fi;
           fi;
         fi;
       ;;
       *) mount -o bind $apex $dest && echo "$dest (bind)" >&2;;
     esac;
   done;
+  echo "$shcon" > /proc/self/attr/current;
   for var in $(grep -o 'export .* /.*' /system_root/init.environ.rc | awk '{ print $2 }'); do
     eval OLD_${var}=\$$var;
   done;
