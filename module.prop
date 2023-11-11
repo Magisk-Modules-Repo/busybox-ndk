@@ -5,6 +5,6 @@ versionCode=13614
 author=osm0sis @ xda-developers
 description=Static busybox binary for all Android architectures built with the NDK
 updateJson=https://raw.githubusercontent.com/Magisk-Modules-Repo/busybox-ndk/master/update.json
-support=https://forum.xda-developers.com/t/tools-zips-scripts-osm0sis-odds-and-ends-multiple-devices-platforms.2239421
+support=https://xdaforums.com/t/tools-zips-scripts-osm0sis-odds-and-ends-multiple-devices-platforms.2239421
 donate=https://www.paypal.me/osm0sis
 template=1500

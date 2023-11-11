@@ -15,4 +15,4 @@ Detects device (ARM/64, x86/_64, MIPS/64) to install the busybox binary, cleans 
 
 My build configs/patches are available here: [android-busybox-ndk](https://github.com/osm0sis/android-busybox-ndk)
 
-Please read the [release post](https://forum.xda-developers.com/t/tools-zips-scripts-osm0sis-odds-and-ends-multiple-devices-platforms.2239421/post-64228091) for info re: applet inclusion, zip renaming options and special features.
+Please read the [release post](https://xdaforums.com/t/tools-zips-scripts-osm0sis-odds-and-ends-multiple-devices-platforms.2239421/post-64228091) for info re: applet inclusion, zip renaming options and special features.
